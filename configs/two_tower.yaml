@@ -1,0 +1,36 @@
+# Two-Tower Model Training Configuration
+# This file centralizes all training parameters for systematic experimentation
+
+# Data source configuration
+data:
+  sequences_path: "data/processed/sequences_with_metadata.parquet"
+  movies_path: "data/processed/content_features.parquet"
+  negative_sampling_ratio: 4
+  min_user_interactions: 5
+
+# Model architecture parameters
+model:
+  embedding_dim: 128
+  user_hidden_dims: [128, 64]
+  item_hidden_dims: [256, 128]
+  dropout_rate: 0.1
+  content_feature_dim: 796  # This gets updated automatically based on actual features
+
+# Training process parameters
+training:
+  num_epochs: 50
+  batch_size: 256
+  learning_rate: 0.001
+  margin: 1.0
+  validation_split: 0.2
+  random_seed: 42
+
+# Evaluation configuration
+evaluation:
+  k_values: [10, 50, 100]
+
+# Output paths for artifacts
+outputs:
+  model_dir: "models/two_tower"
+  embeddings_path: "data/processed/movie_embeddings.parquet"
+  metrics_path: "metrics/two_tower_metrics.json"

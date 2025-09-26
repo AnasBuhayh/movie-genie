@@ -1,0 +1,28 @@
+# Model and encoding
+model_name: "google/embeddinggemma-300M"
+normalize_vectors: true
+cache_size: 1000
+
+# Data paths
+movies_path: "data/processed/content_features.parquet"
+
+# Search settings
+default_results: 20
+max_results: 100
+
+# Reranking configuration
+reranker:
+  enabled: true
+  type: "bert4rec"  # Options: bert4rec, two_tower, none
+  model_path: "models/bert4rec/bert4rec_model.pth"
+  data_artifacts_path: "models/bert4rec/data_artifacts.pkl"
+  
+  # Score combination weights
+  semantic_weight: 0.6
+  personalization_weight: 0.4
+
+# Text preprocessing
+abbreviations:
+  "sci-fi": "science fiction"
+  "rom-com": "romantic comedy"
+  "ai": "artificial intelligence"

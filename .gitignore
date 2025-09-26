@@ -1,0 +1,49 @@
+# Create/update .gitignore
+cat > .gitignore << 'EOF'
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# macOS
+.DS_Store
+
+# Data (managed by DVC)
+data/raw/
+data/interim/
+data/processed/
+*.parquet
+*.csv
+*.xlsx
+
+# Models (managed by DVC)
+models/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment
+venv/
+env/
+*.env
+
+# DVC
+.dvc/tmp/
+
+# Results that change frequently
+results/
+metrics/
+
+# Logs
+*.log
+EOF

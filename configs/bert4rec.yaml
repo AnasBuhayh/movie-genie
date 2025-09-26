@@ -1,0 +1,56 @@
+# BERT4Rec Sequential Recommendation Model Configuration
+# This configuration defines the complete parameter set for BERT4Rec training,
+# including model architecture, training process, data processing, and integration settings
+
+# Data processing parameters
+data:
+  sequences_path: "data/processed/sequences_with_metadata.parquet"
+  movies_path: "data/processed/content_features.parquet"
+  min_seq_len: 3        # Minimum sequence length for meaningful training
+  max_interactions_per_user: 1000  # Limit for computational efficiency
+
+# Model architecture parameters
+# These parameters define the transformer architecture that enables bidirectional
+# understanding of user interaction sequences with content feature integration
+model:
+  max_seq_len: 50       # Maximum sequence length for truncation/padding
+  hidden_dim: 256       # Dimension of transformer hidden representations
+  num_layers: 4         # Number of transformer blocks for deep understanding
+  num_heads: 8          # Number of attention heads for multi-aspect pattern learning
+  dropout_rate: 0.1     # Dropout probability for regularization
+
+# Training process parameters
+# These settings control the optimization process and learning dynamics
+# BERT4Rec typically requires careful tuning for stable transformer training
+training:
+  num_epochs: 100       # Maximum training epochs
+  batch_size: 64        # Batch size balanced for memory and convergence
+  learning_rate: 0.0001 # Lower learning rate for stable transformer training
+  weight_decay: 0.01    # L2 regularization for transformer parameters
+  mask_prob: 0.15       # Probability of masking items (BERT standard)
+  validation_split: 0.2 # Fraction of sequences for temporal validation
+  early_stopping_patience: 10  # Epochs to wait before stopping if no improvement
+  random_seed: 42       # Reproducibility seed
+
+# Evaluation parameters for both individual and integrated assessment
+evaluation:
+  # Individual BERT4Rec metrics
+  mask_prediction_metrics: true
+  sequence_modeling_metrics: true
+  
+  # Integrated two-stage system metrics
+  integrated_evaluation: true
+  ranking_k_values: [5, 10, 20]      # Cutoff points for ranking evaluation
+  retrieval_k_values: [50, 100, 200] # Two-tower candidate set sizes to evaluate
+
+# Output paths for artifacts and results
+outputs:
+  model_dir: "models/bert4rec"
+  metrics_path: "metrics/bert4rec_metrics.json"
+  integrated_metrics_path: "metrics/integrated_system_metrics.json"
+
+# Integration parameters for two-stage system evaluation
+integration:
+  two_tower_model_path: "models/two_tower/two_tower_model.pth"
+  two_tower_config_path: "models/two_tower/model_config.json"
+  candidate_set_sizes: [50, 100, 200]  # Different candidate set sizes to test

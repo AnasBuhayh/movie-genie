@@ -1,0 +1,28 @@
+# Test configuration for checkpoint loading verification
+data:
+  sequences_path: "data/processed/sequences_with_metadata.parquet"
+  movies_path: "data/processed/content_features.parquet"
+  negative_sampling_ratio: 2
+  min_user_interactions: 10
+
+model:
+  embedding_dim: 32
+  user_hidden_dims: [32]
+  item_hidden_dims: [32]
+  dropout_rate: 0.1
+
+training:
+  num_epochs: 1  # Just one epoch for testing
+  batch_size: 64
+  learning_rate: 0.01
+  margin: 1.0
+  validation_split: 0.2
+  random_seed: 42
+
+evaluation:
+  k_values: [10]
+
+outputs:
+  model_dir: "models/test_two_tower"
+  embeddings_path: "data/processed/test_movie_embeddings.parquet"
+  metrics_path: "metrics/test_two_tower_metrics.json"

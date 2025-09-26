@@ -1,0 +1,46 @@
+# Integrated System Evaluation Configuration
+# This configuration defines parameters for evaluating the complete two-stage
+# recommendation system (retrieval + ranking)
+
+# Evaluation data parameters
+data:
+  test_sequences_path: "data/processed/sequences_with_metadata.parquet"
+  movies_path: "data/processed/movies_with_content_features.parquet"
+  test_split_ratio: 0.1  # Fraction of data to use for final evaluation
+
+# Model paths for evaluation
+models:
+  two_tower_model_dir: "models/two_tower"
+  bert4rec_model_dir: "models/bert4rec"
+
+# Evaluation metrics configuration
+metrics:
+  # Retrieval evaluation (Two-Tower)
+  retrieval_k_values: [50, 100, 200, 500]
+
+  # Ranking evaluation (BERT4Rec)
+  ranking_k_values: [5, 10, 20, 50]
+
+  # Integrated system evaluation
+  end_to_end_k_values: [10, 20, 50]
+
+  # Diversity and coverage metrics
+  evaluate_diversity: true
+  evaluate_coverage: true
+  evaluate_novelty: true
+
+# Candidate set sizes for two-stage evaluation
+candidate_sets:
+  sizes: [50, 100, 200]  # Different retrieval set sizes to test
+
+# Sampling parameters for evaluation efficiency
+sampling:
+  max_users_for_evaluation: 1000  # Limit users for faster evaluation
+  max_items_per_user: 50          # Limit items per user for evaluation
+  random_seed: 42
+
+# Output configuration
+outputs:
+  detailed_results: true
+  save_examples: true
+  num_examples_to_save: 100

@@ -1,0 +1,8 @@
+data_sources:
+  movielens:
+    dataset_size: "ml-latest-small"  # Switch to "ml-25m" for production
+    cache_dir: "data/processed"
+
+processing:
+  force_reprocess: false     # Override cache when needed
+  sequence_multiplier: 2.5   # Adaptive window scaling factor
