@@ -1,0 +1,180 @@
+site_name: Movie Genie Documentation
+site_description: AI-powered movie recommendation system - Complete learning reference
+site_author: Movie Genie Team
+site_url: https://your-username.github.io/movie-genie
+
+# Repository
+repo_name: movie-genie
+repo_url: https://github.com/your-username/movie-genie
+edit_uri: edit/main/docs/
+
+# Copyright
+copyright: Copyright &copy; 2024 Movie Genie
+
+# Configuration
+theme:
+  name: material
+  features:
+    - announce.dismiss
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.code.select
+    - content.tabs.link
+    - content.tooltips
+    - header.autohide
+    - navigation.expand
+    - navigation.footer
+    - navigation.indexes
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - navigation.prune
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+  favicon: assets/favicon.ico
+  icon:
+    logo: material/movie
+
+# Plugins
+plugins:
+  - search:
+      separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+  - minify:
+      minify_html: true
+  - git-revision-date-localized:
+      enable_creation_date: true
+  - git-committers:
+      repository: your-username/movie-genie
+      branch: main
+  - tags
+
+# Hooks (commented out for now)
+# hooks:
+#   - docs/hooks.py
+
+# Customization
+extra:
+  status:
+    new: Recently added
+    deprecated: Deprecated
+  analytics:
+    provider: google
+    property: !ENV GOOGLE_ANALYTICS_KEY
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/your-username/movie-genie
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/movie-genie/
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/your-username
+
+# Extensions
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      repo_url_shorthand: true
+      user: squidfunk
+      repo: mkdocs-material
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+# Navigation
+nav:
+  - Home: index.md
+
+  - Getting Started:
+    - getting-started/index.md
+    - Quick Start: getting-started/quick-start.md
+    - Installation: getting-started/installation.md
+    - Project Overview: getting-started/project-overview.md
+    - Commands Reference: getting-started/commands-reference.md
+
+  - Machine Learning:
+    - machine-learning/index.md
+    - Models Overview: machine-learning/models-overview.md
+    - BERT4Rec: machine-learning/bert4rec.md
+    - Two-Tower: machine-learning/two_tower.md
+    - Semantic Search: machine-learning/semantic-search.md
+    - Model Evaluation: machine-learning/evaluation.md
+
+  - Data Pipeline:
+    - data-pipeline/index.md
+
+  - Backend & Frontend:
+    - backend-frontend/index.md
+    - Backend Integration: backend-frontend/backend-integration.md
+    - ML Integration: backend-frontend/ml-integration.md
+    - API Reference: backend-frontend/api-reference.md
+
+  - Troubleshooting:
+    - troubleshooting/index.md
+
+  - Reference:
+    - reference/index.md
+    - Technology Stack: reference/technology-stack.md
+    - Project Structure: reference/project-structure.md
+
+# Extra CSS and JavaScript
+extra_css:
+  - stylesheets/extra.css
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js

@@ -209,9 +209,9 @@ stages:
       size: 2758
     - path: movie_genie/frontend/src/
       hash: md5
-      md5: cfbbf3e60bf50e47473097f7e7497d1b.dir
-      size: 372254
-      nfiles: 73
+      md5: da9f97f4a411830921d03cae06bfedba.dir
+      size: 380545
+      nfiles: 74
     - path: movie_genie/frontend/tailwind.config.ts
       hash: md5
       md5: 93be9dc915ab46eb00ba50615b111fd6
@@ -223,12 +223,12 @@ stages:
     outs:
     - path: movie_genie/backend/static/
       hash: md5
-      md5: 16b32591185956b3392ec4e32c3800a9.dir
-      size: 401961
+      md5: 79c3f8fecc0d82422a30aa1f157848a6.dir
+      size: 404380
       nfiles: 2
     - path: movie_genie/backend/templates/index.html
       hash: md5
-      md5: 80f78ae8be4e935c33c43cfec7ef58ac
+      md5: d1e5d98288e01eeaf3afb9601ad679e0
       size: 1347
   backend_server:
     cmd: FLASK_PORT=5001 python scripts/start_server.py

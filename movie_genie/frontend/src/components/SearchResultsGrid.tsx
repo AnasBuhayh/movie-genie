@@ -1,15 +1,8 @@
+import { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-
-interface Movie {
-  id: string;
-  title: string;
-  poster: string;
-  genres?: string[];
-  description?: string;
-  rating?: number;
-}
+import { MovieThumbnail } from "./MovieThumbnail";
+import MovieDataService, { type MovieData } from "../services/movieDataService";
 
 interface SearchResultsGridProps {
   searchQuery: string;
@@ -17,25 +10,39 @@ interface SearchResultsGridProps {
   onBackToMain: () => void;
 }
 
-// Mock search results - 20 placeholder movies
-const createMockSearchResult = (id: number, query: string) => ({
-  id: id.toString(),
-  title: `${query} Result ${id}`,
-  poster: '/placeholder.svg',
-  genres: ['Action', 'Drama', 'Thriller'],
-  description: `A great movie related to "${query}" with an engaging storyline.`,
-  rating: 7.0 + Math.random() * 2.5,
-});
-
 export const SearchResultsGrid: React.FC<SearchResultsGridProps> = ({
   searchQuery,
   onMovieClick,
   onBackToMain
 }) => {
-  // Generate 20 mock search results based on the query
-  const searchResults = Array.from({length: 20}, (_, i) =>
-    createMockSearchResult(i + 1, searchQuery)
-  );
+  const [searchResults, setSearchResults] = useState<MovieData[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasRealData, setHasRealData] = useState(false);
+  const [totalResults, setTotalResults] = useState(0);
+
+  useEffect(() => {
+    const fetchSearchResults = async () => {
+      if (!searchQuery.trim()) return;
+
+      setIsLoading(true);
+      try {
+        const results = await MovieDataService.searchMovies(searchQuery, 20);
+        setSearchResults(results.movies);
+        setHasRealData(results.hasRealData);
+        setTotalResults(results.total);
+      } catch (error) {
+        console.error('Search failed:', error);
+        // Fallback to empty results
+        setSearchResults([]);
+        setHasRealData(false);
+        setTotalResults(0);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSearchResults();
+  }, [searchQuery]);
 
   return (
     <div className="space-y-6">
@@ -53,57 +60,51 @@ export const SearchResultsGrid: React.FC<SearchResultsGridProps> = ({
           </Button>
           <div>
             <h2 className="text-2xl font-bold">Search Results</h2>
-            <p className="text-muted-foreground">
-              Found {searchResults.length} movies for "{searchQuery}"
-            </p>
+            <div className="flex items-center space-x-3">
+              <p className="text-muted-foreground">
+                {isLoading ? 'Searching...' : `Found ${totalResults} movies for "${searchQuery}"`}
+              </p>
+              <span className={`text-xs px-2 py-1 rounded ${hasRealData ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+                {hasRealData ? '🌐 Real Data' : '📝 Mock Data'}
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Grid of search results */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 max-h-[600px] overflow-y-auto pr-2">
-        {searchResults.map((movie) => (
-          <Card
-            key={movie.id}
-            className="relative bg-gradient-to-br from-card to-card/80 border-border/50 overflow-hidden group cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg"
-            onClick={() => onMovieClick(movie.id)}
-          >
-            <div className="aspect-[2/3] bg-muted flex items-center justify-center relative">
-              <img
-                src={movie.poster}
-                alt={movie.title}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  const target = e.currentTarget as HTMLImageElement;
-                  target.style.display = 'none';
-                  const nextElement = target.nextElementSibling as HTMLElement;
-                  if (nextElement) {
-                    nextElement.style.display = 'flex';
-                  }
-                }}
-              />
-              <div className="w-full h-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center text-muted-foreground text-sm hidden">
-                {movie.title}
-              </div>
-
-              {/* Hover overlay */}
-              <div className="absolute inset-0 bg-black/60 transition-opacity duration-300 opacity-0 group-hover:opacity-100">
-                <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
-                  <h3 className="font-semibold text-sm line-clamp-2 mb-1">{movie.title}</h3>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-yellow-400">★ {movie.rating?.toFixed(1)}</span>
-                    <span className="text-gray-300">{movie.genres?.[0]}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Card>
-        ))}
+        {isLoading ? (
+          // Loading skeletons
+          Array.from({length: 20}, (_, i) => (
+            <MovieThumbnail
+              key={`loading-${i}`}
+              movie={{ id: `loading-${i}`, title: 'Loading...' }}
+              isLoading={true}
+              onMovieClick={onMovieClick}
+            />
+          ))
+        ) : (
+          // Actual results
+          searchResults.map((movie) => (
+            <MovieThumbnail
+              key={movie.id}
+              movie={movie}
+              onMovieClick={onMovieClick}
+            />
+          ))
+        )}
       </div>
 
       {/* Footer info */}
       <div className="text-center text-sm text-muted-foreground">
-        Click on any movie to see more details
+        {isLoading ? (
+          'Loading search results...'
+        ) : searchResults.length > 0 ? (
+          'Click on any movie to see more details'
+        ) : (
+          'No results found. Try a different search term.'
+        )}
       </div>
     </div>
   );

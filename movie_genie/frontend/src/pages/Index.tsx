@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MovieSearch } from "@/components/MovieSearch";
 import { MovieDetails } from "@/components/MovieDetails";
 import { RecommendationCarousel } from "@/components/RecommendationCarousel";
@@ -19,22 +19,8 @@ import {
   formatMovieForComponent,
 } from "@/hooks/useMovieAPI";
 
-// Mock movie data with placeholders
-const createMockMovie = (id: number, title: string) => ({
-  id: id.toString(),
-  title,
-  poster: '/placeholder.svg',
-  genres: ['Action', 'Drama'],
-  description: `${title} - A great movie with an engaging storyline.`,
-  rating: 7.5 + Math.random() * 2,
-});
-
-const mockMovies = {
-  popular: Array.from({length: 10}, (_, i) => createMockMovie(i + 1, `Popular Movie ${i + 1}`)),
-  historical: Array.from({length: 10}, (_, i) => createMockMovie(i + 11, `Historical Interest ${i + 1}`)),
-  recommended: Array.from({length: 10}, (_, i) => createMockMovie(i + 21, `Recommended ${i + 1}`)),
-  watched: Array.from({length: 8}, (_, i) => createMockMovie(i + 31, `Watched Movie ${i + 1}`)),
-};
+// Import data service
+import MovieDataService, { type MovieData } from "@/services/movieDataService";
 
 // Placeholder movie for initial state
 const placeholderMovie = {
@@ -52,20 +38,43 @@ const Index = () => {
   const [isUserSelected, setIsUserSelected] = useState(false);
   const [isSearchMode, setIsSearchMode] = useState(false);
 
-  // API Queries - only run when user is selected
-  const { data: popularData, isLoading: isLoadingPopular } = usePopularMovies();
-  const { data: personalizedData, isLoading: isLoadingPersonalized } = usePersonalizedRecommendations(
-    isUserSelected && userId ? userId : undefined,
-    undefined,
-    isUserSelected && userId.length > 0
-  );
-  const { data: searchData, isLoading: isSearching } = useSearchMovies(searchQuery, searchQuery.length > 0 && isUserSelected);
-  const { data: movieDetails } = useMovieDetails(selectedMovieId, !!selectedMovieId && isUserSelected);
+  // Movie data states
+  const [popularMovies, setPopularMovies] = useState<MovieData[]>([]);
+  const [personalizedMovies, setPersonalizedMovies] = useState<MovieData[]>([]);
+  const [historicalMovies, setHistoricalMovies] = useState<MovieData[]>([]);
+  const [watchedMovies, setWatchedMovies] = useState<MovieData[]>([]);
+  const [isLoadingMovies, setIsLoadingMovies] = useState(false);
 
-  // Transform API data for components
-  const popularMovies = popularData?.movies?.map(formatMovieForComponent) || [];
-  const personalizedMovies = personalizedData?.movies?.map(formatMovieForComponent) || [];
-  const searchResults = searchData?.movies?.map(formatMovieForComponent) || [];
+  // Load movie data when user is selected
+  useEffect(() => {
+    if (!isUserSelected) return;
+
+    const loadMovieData = async () => {
+      setIsLoadingMovies(true);
+      try {
+        const [popular, personalized, historical, watched] = await Promise.all([
+          MovieDataService.getPopularMovies(10),
+          MovieDataService.getPersonalizedRecommendations(userId, 10),
+          MovieDataService.getHistoricalInterest(userId, 10),
+          MovieDataService.getUserWatchedMovies(userId, 8),
+        ]);
+
+        setPopularMovies(popular);
+        setPersonalizedMovies(personalized);
+        setHistoricalMovies(historical);
+        setWatchedMovies(watched);
+      } catch (error) {
+        console.error('Failed to load movie data:', error);
+      } finally {
+        setIsLoadingMovies(false);
+      }
+    };
+
+    loadMovieData();
+  }, [isUserSelected, userId]);
+
+  // Get movie details for selected movie
+  const { data: movieDetails } = useMovieDetails(selectedMovieId, !!selectedMovieId && isUserSelected);
 
   // Current movie for details panel
   const currentMovie = movieDetails ? {
@@ -147,30 +156,8 @@ const Index = () => {
               <MovieSearch onSearch={handleSearch} />
               <Separator className="border-border" />
 
-              {/* Show search results or movie details */}
-              {isSearching ? (
-                <Card>
-                  <CardContent className="p-4">
-                    <Skeleton className="h-4 w-full mb-2" />
-                    <Skeleton className="h-4 w-3/4 mb-2" />
-                    <Skeleton className="h-20 w-full" />
-                  </CardContent>
-                </Card>
-              ) : searchResults.length > 0 ? (
-                <div className="space-y-2">
-                  <h3 className="text-lg font-semibold">Search Results</h3>
-                  {searchResults.slice(0, 5).map((movie) => (
-                    <Card key={movie.id} className="cursor-pointer hover:bg-accent" onClick={() => handleMovieClick(movie.id)}>
-                      <CardContent className="p-3">
-                        <h4 className="font-medium">{movie.title}</h4>
-                        <p className="text-sm text-muted-foreground">{movie.genres?.join(", ")}</p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <MovieDetails movie={currentMovie} />
-              )}
+              {/* Show movie details */}
+              <MovieDetails movie={currentMovie} />
             </div>
 
             {/* Right Column - Search Results or Recommendations */}
@@ -186,31 +173,60 @@ const Index = () => {
                   {/* Popular Movies */}
                   <RecommendationCarousel
                     title="Popular Movies"
-                    movies={mockMovies.popular}
+                    movies={popularMovies.map(movie => ({
+                      id: movie.id,
+                      title: movie.title,
+                      poster: movie.poster_url || '/placeholder.svg',
+                      genres: movie.genres,
+                      rating: movie.rating,
+                    }))}
                     onMovieClick={handleMovieClick}
+                    isLoading={isLoadingMovies}
                   />
 
                   {/* Based on Historical Interest */}
                   <RecommendationCarousel
                     title="Based on Historical Interest"
-                    movies={mockMovies.historical}
+                    movies={historicalMovies.map(movie => ({
+                      id: movie.id,
+                      title: movie.title,
+                      poster: movie.poster_url || '/placeholder.svg',
+                      genres: movie.genres,
+                      rating: movie.rating,
+                    }))}
                     onMovieClick={handleMovieClick}
+                    isLoading={isLoadingMovies}
                   />
 
                   {/* You Might Like These */}
                   <RecommendationCarousel
                     title="You Might Like These"
-                    movies={mockMovies.recommended}
+                    movies={personalizedMovies.map(movie => ({
+                      id: movie.id,
+                      title: movie.title,
+                      poster: movie.poster_url || '/placeholder.svg',
+                      genres: movie.genres,
+                      rating: movie.rating,
+                    }))}
                     showRatings={true}
                     onMovieClick={handleMovieClick}
                     onRating={handleRating}
+                    isLoading={isLoadingMovies}
                   />
 
                   {/* User's Watched Movies */}
                   <RecommendationCarousel
                     title={`Movies Watched by User ${userId}`}
-                    movies={mockMovies.watched}
+                    movies={watchedMovies.map(movie => ({
+                      id: movie.id,
+                      title: movie.title,
+                      poster: movie.poster_url || '/placeholder.svg',
+                      genres: movie.genres,
+                      rating: movie.rating,
+                      watched: true,
+                    }))}
                     onMovieClick={handleMovieClick}
+                    isLoading={isLoadingMovies}
                   />
                 </>
               )}
