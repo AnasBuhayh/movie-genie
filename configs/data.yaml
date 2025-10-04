@@ -6,3 +6,4 @@ data_sources:
 processing:
   force_reprocess: false     # Override cache when needed
   sequence_multiplier: 2.5   # Adaptive window scaling factor
+  embedding_model: "sentence-transformers/all-MiniLM-L6-v2"  # Better semantic quality than EmbeddingGemma

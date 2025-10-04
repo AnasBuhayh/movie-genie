@@ -95,7 +95,7 @@ class RecommendationService:
                 logger.warning("No candidate movies found")
                 return self._fallback_recommendations(limit)
 
-            # Format candidates for reranker
+            # Format candidates for reranker (preserve all movie data)
             search_results = []
             for movie in candidate_movies:
                 search_results.append({
@@ -103,6 +103,11 @@ class RecommendationService:
                     'title': movie['title'],
                     'overview': movie['overview'],
                     'genres': movie['genres'],
+                    'vote_average': movie.get('vote_average'),
+                    'vote_count': movie.get('vote_count'),
+                    'popularity': movie.get('popularity'),
+                    'release_date': movie.get('release_date'),
+                    'poster_path': movie.get('poster_path'),
                     'similarity_score': 1.0,  # Default similarity score
                     'rank': len(search_results) + 1
                 })
@@ -121,7 +126,7 @@ class RecommendationService:
             else:
                 reranked_results = search_results
 
-            # Take top results
+            # Take top results (preserve all fields)
             recommendations = reranked_results[:limit]
 
             response = {

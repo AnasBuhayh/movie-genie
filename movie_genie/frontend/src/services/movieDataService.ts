@@ -30,11 +30,12 @@ export interface SearchResults {
 }
 
 // Configuration for data sources
+// Use real API by default, allow override via env vars
 const DATA_SOURCE_CONFIG = {
-  popular: process.env.VITE_USE_REAL_POPULAR === 'true',
-  search: process.env.VITE_USE_REAL_SEARCH === 'true',
-  recommendations: process.env.VITE_USE_REAL_RECOMMENDATIONS === 'true',
-  movieDetails: process.env.VITE_USE_REAL_MOVIE_DETAILS === 'true',
+  popular: import.meta.env.VITE_USE_REAL_POPULAR !== 'false',
+  search: import.meta.env.VITE_USE_REAL_SEARCH !== 'false',
+  recommendations: import.meta.env.VITE_USE_REAL_RECOMMENDATIONS !== 'false',
+  movieDetails: import.meta.env.VITE_USE_REAL_MOVIE_DETAILS !== 'false',
 };
 
 export class MovieDataService {
@@ -95,7 +96,18 @@ export class MovieDataService {
     if (DATA_SOURCE_CONFIG.recommendations && userId) {
       try {
         console.log('🔄 Attempting to fetch real recommendations for user:', userId);
-        const response = await MovieGenieAPI.getPersonalizedRecommendations(userId);
+
+        // Fetch user's interaction history to personalize recommendations
+        let interactionHistory: any[] = [];
+        try {
+          const userProfile = await MovieGenieAPI.getUserProfile(parseInt(userId));
+          interactionHistory = userProfile.interaction_history || [];
+          console.log(`📊 Got ${interactionHistory.length} user interactions for personalization`);
+        } catch (error) {
+          console.warn('⚠️ Could not fetch user history, using basic recommendations:', error);
+        }
+
+        const response = await MovieGenieAPI.getPersonalizedRecommendations(userId, interactionHistory);
         const movies = response.movies?.map(this.transformApiMovie) || [];
         console.log('✅ Got real recommendations:', movies.length);
         return movies;
@@ -110,14 +122,39 @@ export class MovieDataService {
     );
   }
 
-  // Search movies (with fallback)
-  static async searchMovies(query: string, limit: number = 20): Promise<SearchResults> {
-    if (DATA_SOURCE_CONFIG.search && query.trim()) {
+  // Search movies (no fallback - real data only)
+  static async searchMovies(query: string, limit: number = 20, userId?: string): Promise<SearchResults> {
+    if (!query.trim()) {
+      return {
+        movies: [],
+        total: 0,
+        query,
+        hasRealData: false,
+      };
+    }
+
+    console.log('🔄 Searching for:', query, userId ? `(user: ${userId})` : '');
+
+    // Try semantic search first
+    try {
+      const response = await MovieGenieAPI.searchMovies(query, true, userId);
+      const movies = response.movies?.map(this.transformApiMovie) || [];
+      console.log('✅ Semantic search results:', movies.length);
+
+      return {
+        movies: movies.slice(0, limit),
+        total: movies.length,
+        query,
+        hasRealData: true,
+      };
+    } catch (semanticError) {
+      console.warn('⚠️ Semantic search failed, trying traditional search:', semanticError);
+
+      // Fallback to traditional search
       try {
-        console.log('🔄 Attempting real semantic search for:', query);
-        const response = await MovieGenieAPI.searchMovies(query, true);
+        const response = await MovieGenieAPI.searchMovies(query, false, userId);
         const movies = response.movies?.map(this.transformApiMovie) || [];
-        console.log('✅ Got real search results:', movies.length);
+        console.log('✅ Traditional search results:', movies.length);
 
         return {
           movies: movies.slice(0, limit),
@@ -125,22 +162,11 @@ export class MovieDataService {
           query,
           hasRealData: true,
         };
-      } catch (error) {
-        console.warn('⚠️ Real search failed, falling back to mock data:', error);
+      } catch (traditionalError) {
+        console.error('❌ All search methods failed:', traditionalError);
+        throw new Error(`Search failed: ${traditionalError instanceof Error ? traditionalError.message : String(traditionalError)}`);
       }
     }
-
-    console.log('📝 Using mock search results for:', query);
-    const mockMovies = Array.from({length: limit}, (_, i) =>
-      this.createMockMovie(i + 200, `${query} Result ${i + 1}`, 'Search')
-    );
-
-    return {
-      movies: mockMovies,
-      total: mockMovies.length,
-      query,
-      hasRealData: false,
-    };
   }
 
   // Get movie details (with fallback)
@@ -160,16 +186,43 @@ export class MovieDataService {
     return this.createMockMovie(parseInt(movieId) || 1, `Movie Details ${movieId}`, 'Details');
   }
 
-  // Get historical interest movies (mock for now)
+  // Get historical interest movies (with fallback)
   static async getHistoricalInterest(userId?: string, limit: number = 20): Promise<MovieData[]> {
+    if (userId) {
+      try {
+        console.log('🔄 Attempting to fetch real historical interest movies...');
+        const response = await MovieGenieAPI.getUserHistoricalInterest(parseInt(userId), limit);
+        const movies = response.movies?.map(this.transformApiMovie) || [];
+        console.log('✅ Got real historical interest movies:', movies.length);
+        return movies;
+      } catch (error) {
+        console.warn('⚠️ Real historical interest failed, falling back to mock data:', error);
+      }
+    }
+
     console.log('📝 Using mock historical interest movies');
     return Array.from({length: limit}, (_, i) =>
       this.createMockMovie(i + 300, `Historical Interest ${i + 1}`, 'Historical')
     );
   }
 
-  // Get user's watched movies (mock for now)
+  // Get user's watched movies (with fallback)
   static async getUserWatchedMovies(userId?: string, limit: number = 20): Promise<MovieData[]> {
+    if (userId) {
+      try {
+        console.log('🔄 Attempting to fetch real watched movies...');
+        const response = await MovieGenieAPI.getUserWatchedMovies(parseInt(userId), limit);
+        const movies = response.movies?.map((movie: any) => ({
+          ...this.transformApiMovie(movie),
+          watched: true  // Preserve watched flag from backend
+        })) || [];
+        console.log('✅ Got real watched movies:', movies.length);
+        return movies;
+      } catch (error) {
+        console.warn('⚠️ Real watched movies failed, falling back to mock data:', error);
+      }
+    }
+
     console.log('📝 Using mock watched movies for user:', userId);
     return Array.from({length: limit}, (_, i) =>
       this.createMockMovie(i + 400, `Watched Movie ${i + 1}`, 'Watched')

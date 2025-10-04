@@ -77,8 +77,10 @@ def main() -> None:
         # Merge datasets
         enriched_movies = DataMerger.merge_tmdb_with_links(links_df, tmdb_df)
 
-        # Initialize processors
-        embedder = TextEmbedder()
+        # Initialize processors with configured embedding model
+        embedding_model = config.get('processing', {}).get('embedding_model', 'google/embeddinggemma-300M')
+        logging.info(f"Using embedding model: {embedding_model}")
+        embedder = TextEmbedder(model_name=embedding_model)
         processor = TMDBFeatureProcessor(embedder)
 
         # Extract features

@@ -1,6 +1,6 @@
 # 📚 API Reference
 
-Complete documentation for Movie Genie's REST API endpoints, including request/response formats, authentication, and examples.
+Complete documentation for Movie Genie's REST API endpoints, including request/response formats, data schemas, and examples.
 
 ## 🌐 API Overview
 
@@ -8,13 +8,77 @@ Complete documentation for Movie Genie's REST API endpoints, including request/r
 
 **Content Type**: `application/json`
 
-**Response Format**: All endpoints return JSON with the following structure:
+**Response Format**: All endpoints return JSON with a consistent wrapper structure:
 ```json
 {
   "success": boolean,
   "message": string,
   "data": object | array | null,
-  "timestamp": string (ISO 8601)
+  "error_code": string (optional, only on errors),
+  "details": any (optional, only on errors)
+}
+```
+
+### Important Notes
+
+- **Response Unwrapping**: The frontend automatically unwraps the `data` field from the response wrapper
+- **Poster URLs**: All `poster_path` values are relative (e.g., `/xyz.jpg`) and need to be prepended with `https://image.tmdb.org/t/p/w500` for display
+- **Genre Format**: Genres are always returned as string arrays, never pipe-separated strings
+- **User IDs**: Valid user IDs range from 1-610 (MovieLens small dataset)
+
+---
+
+## 📊 Data Schemas
+
+### Movie Object Schema
+
+All movie objects returned by the API follow this schema:
+
+```typescript
+{
+  movieId: number,                    // Primary identifier
+  title: string,                      // Movie title
+  overview: string | null,            // Plot summary
+  genres: string[],                   // Array of genre names (e.g., ["Action", "Sci-Fi"])
+  vote_average: number | null,        // TMDB rating (0-10 scale)
+  vote_count: number | null,          // Number of votes
+  runtime: number | null,             // Duration in minutes
+  release_date: string | null,        // ISO date format (YYYY-MM-DD)
+  poster_path: string | null,         // Relative path to poster image
+
+  // Search-specific fields (only in search results)
+  similarity_score?: number,          // Semantic similarity (0-1 scale, higher = better match)
+  rank?: number,                      // Position in ranked results
+
+  // Recommendation-specific fields
+  personalized_score?: number,        // Personalization score from ML model
+  prediction_confidence?: number,     // Model confidence (0-1 scale)
+
+  // User interaction fields (only when applicable)
+  watched?: boolean,                  // User has watched this movie
+  liked?: boolean,                    // User liked this movie
+  disliked?: boolean                  // User disliked this movie
+}
+```
+
+### Search Response Schema
+
+```typescript
+{
+  movies: Movie[],                    // Array of movie objects
+  total: number,                      // Total number of results
+  query: string,                      // Original search query
+  search_type: "semantic" | "traditional"
+}
+```
+
+### Recommendation Response Schema
+
+```typescript
+{
+  movies: Movie[],                    // Array of recommended movies
+  total: number,                      // Total number of recommendations
+  recommendation_type: string         // Type of recommendation
 }
 ```
 
@@ -39,16 +103,8 @@ Check if the API server is running and healthy.
   "message": "System is healthy",
   "data": {
     "status": "healthy",
-    "version": "1.0.0",
-    "uptime": 3600,
-    "models_loaded": {
-      "bert4rec": true,
-      "two_tower": true,
-      "semantic_search": true
-    },
-    "database_status": "connected"
-  },
-  "timestamp": "2024-01-01T12:00:00.000Z"
+    "version": "1.0.0"
+  }
 }
 ```
 
@@ -63,46 +119,185 @@ curl http://127.0.0.1:5001/api/health
 
 ### Get User Information
 
-Retrieve information about a specific user or current user context.
+Retrieve information about available users in the system.
 
 #### `GET /users/info`
 
-**Description**: Returns user information and statistics.
+**Description**: Returns user range and statistics for the MovieLens dataset.
 
-**Parameters**:
-- `user_id` (query, optional): Specific user ID to query (1-610)
+**Parameters**: None
 
 **Response**:
 ```json
 {
   "success": true,
-  "message": "User information retrieved successfully",
+  "message": "User information retrieved",
   "data": {
-    "current_user": 123,
-    "total_users": 943,
+    "total_users": 610,
     "user_range": {
       "min": 1,
       "max": 610
     },
-    "user_stats": {
-      "ratings_count": 150,
-      "avg_rating": 3.8,
-      "favorite_genres": ["Action", "Sci-Fi"],
-      "last_activity": "2024-01-01T10:30:00.000Z"
-    }
-  },
-  "timestamp": "2024-01-01T12:00:00.000Z"
+    "description": "MovieLens small dataset users"
+  }
 }
 ```
 
 **Example**:
 ```bash
-# Get general user info
 curl http://127.0.0.1:5001/api/users/info
-
-# Get specific user info
-curl "http://127.0.0.1:5001/api/users/info?user_id=123"
 ```
+
+---
+
+### Get User Profile
+
+Retrieve detailed profile for a specific user including interaction history.
+
+#### `GET /users/{user_id}/profile`
+
+**Description**: Returns user profile with complete interaction history for ML model personalization.
+
+**Parameters**:
+- `user_id` (path, required): User ID (1-610)
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "User profile retrieved",
+  "data": {
+    "user_id": 123,
+    "interaction_history": [
+      {
+        "movieId": 1,
+        "rating": 5.0,
+        "timestamp": "1997-01-01T00:00:00Z"
+      },
+      {
+        "movieId": 2,
+        "rating": 3.0,
+        "timestamp": "1997-01-02T00:00:00Z"
+      }
+    ],
+    "total_interactions": 150
+  }
+}
+```
+
+**Example**:
+```bash
+curl http://127.0.0.1:5001/api/users/123/profile
+```
+
+**Usage**: The interaction history is used by BERT4Rec for sequential recommendations and personalized search ranking.
+
+---
+
+### Get User's Watched Movies
+
+Retrieve movies that the user has watched (based on rating history).
+
+#### `GET /users/{user_id}/watched`
+
+**Description**: Returns the most recent movies the user has interacted with, sorted by timestamp.
+
+**Parameters**:
+- `user_id` (path, required): User ID (1-610)
+- `limit` (query, optional): Number of movies to return (default: 20, max: 100)
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Retrieved 20 watched movies for user 123",
+  "data": {
+    "movies": [
+      {
+        "movieId": 1,
+        "title": "Toy Story",
+        "overview": "A cowboy doll is profoundly threatened...",
+        "genres": ["Animation", "Adventure", "Comedy"],
+        "poster_path": "/uXDfjJbdP4ijW5hWSBrPrlKpxab.jpg",
+        "vote_average": 7.7,
+        "vote_count": 5415,
+        "runtime": 81,
+        "release_date": "1995-10-30",
+        "watched": true
+      }
+    ],
+    "total": 20
+  }
+}
+```
+
+**Example**:
+```bash
+# Get last 20 watched movies
+curl http://127.0.0.1:5001/api/users/123/watched
+
+# Get last 8 watched movies
+curl "http://127.0.0.1:5001/api/users/123/watched?limit=8"
+```
+
+**Implementation Details**:
+- Loads user interaction data from `sequences_with_metadata.parquet`
+- Gets unique movie IDs from most recent interactions
+- Enriches with full movie metadata from `content_features.parquet`
+- Marks all movies with `watched: true` flag
+
+---
+
+### Get User's Historical Interest
+
+Get personalized recommendations based on user's favorite genres.
+
+#### `GET /users/{user_id}/historical-interest`
+
+**Description**: Analyzes user's rating history to identify top 3 favorite genres, then returns unwatched movies from those genres.
+
+**Parameters**:
+- `user_id` (path, required): User ID (1-610)
+- `limit` (query, optional): Number of movies to return (default: 20, max: 100)
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Retrieved 20 historical interest movies for user 123",
+  "data": {
+    "movies": [
+      {
+        "movieId": 2,
+        "title": "Jumanji",
+        "overview": "When siblings Judy and Peter discover...",
+        "genres": ["Adventure", "Fantasy", "Family"],
+        "poster_path": "/vgpXmVaVyUL7GGiDeiK1mKEKzcX.jpg",
+        "vote_average": 6.9,
+        "vote_count": 2413,
+        "runtime": 104,
+        "release_date": "1995-12-15"
+      }
+    ],
+    "total": 20,
+    "favorite_genres": ["Adventure", "Fantasy", "Action"]
+  }
+}
+```
+
+**Example**:
+```bash
+curl http://127.0.0.1:5001/api/users/123/historical-interest
+```
+
+**Algorithm**:
+1. Load all user interactions with genre information
+2. Count genre occurrences across rated movies
+3. Identify top 3 most-watched genres
+4. Find unwatched movies matching those genres (via set difference)
+5. Sort by popularity (vote_count) and return top N
+
+**Genre Parsing**: Handles both pipe-separated strings (`"Action|Adventure"`) and array formats.
 
 ---
 
@@ -110,15 +305,14 @@ curl "http://127.0.0.1:5001/api/users/info?user_id=123"
 
 ### Get Popular Movies
 
-Retrieve a list of popular movies with optional personalization.
+Retrieve globally popular movies sorted by vote count.
 
 #### `GET /movies/popular`
 
-**Description**: Returns popular movies, optionally personalized for a specific user.
+**Description**: Returns most popular movies from the dataset based on TMDB vote counts.
 
 **Parameters**:
 - `limit` (query, optional): Number of movies to return (default: 20, max: 100)
-- `user_id` (query, optional): User ID for personalization (1-610)
 
 **Response**:
 ```json
@@ -128,39 +322,30 @@ Retrieve a list of popular movies with optional personalization.
   "data": {
     "movies": [
       {
-        "movieId": 1,
-        "title": "Toy Story",
-        "genres": ["Animation", "Children's", "Comedy"],
-        "poster_path": "/w4pJJ6VsZPNHdKJxCZZLfYRyPac.jpg",
-        "vote_average": 8.3,
-        "release_date": "1995-10-30",
-        "overview": "A cowboy doll is profoundly threatened...",
-        "runtime": 81,
-        "personalized_score": 0.92,
-        "rank": 1
+        "movieId": 296,
+        "title": "Pulp Fiction",
+        "overview": "A burger-loving hit man...",
+        "genres": ["Thriller", "Crime"],
+        "poster_path": "/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg",
+        "vote_average": 8.5,
+        "vote_count": 8670,
+        "runtime": 154,
+        "release_date": "1994-09-10"
       }
     ],
-    "total": 20,
-    "recommendation_type": "popular",
-    "personalized": true,
-    "user_context": {
-      "user_id": "123",
-      "model_used": "two_tower",
-      "inference_time": 15
-    }
-  },
-  "timestamp": "2024-01-01T12:00:00.000Z"
+    "total": 20
+  }
 }
 ```
 
 **Example**:
 ```bash
-# Get popular movies
 curl "http://127.0.0.1:5001/api/movies/popular?limit=10"
-
-# Get personalized popular movies
-curl "http://127.0.0.1:5001/api/movies/popular?limit=10&user_id=123"
 ```
+
+**Sorting**: Movies are sorted by `vote_count` descending (most voted = most popular).
+
+---
 
 ### Get Movie Details
 
@@ -168,49 +353,37 @@ Retrieve detailed information about a specific movie.
 
 #### `GET /movies/{movie_id}`
 
-**Description**: Returns comprehensive movie information including similar movies.
+**Description**: Returns comprehensive movie information from content features dataset.
 
 **Parameters**:
-- `movie_id` (path): Movie ID (integer)
-- `user_id` (query, optional): User ID for personalized similar movies
+- `movie_id` (path, required): Movie ID (integer)
 
 **Response**:
 ```json
 {
   "success": true,
-  "message": "Movie details retrieved successfully",
+  "message": "Movie details retrieved",
   "data": {
     "movieId": 1,
     "title": "Toy Story",
-    "genres": ["Animation", "Children's", "Comedy"],
-    "poster_path": "/w4pJJ6VsZPNHdKJxCZZLfYRyPac.jpg",
-    "vote_average": 8.3,
-    "release_date": "1995-10-30",
-    "overview": "A cowboy doll is profoundly threatened and jealous when a new spaceman figure supplants him as top toy in a boy's room.",
+    "overview": "Led by Woody, Andy's toys live happily...",
+    "genres": ["Animation", "Adventure", "Comedy"],
+    "poster_path": "/uXDfjJbdP4ijW5hWSBrPrlKpxab.jpg",
+    "vote_average": 7.7,
+    "vote_count": 5415,
     "runtime": 81,
-    "director": "John Lasseter",
-    "cast": ["Tom Hanks", "Tim Allen", "Don Rickles"],
-    "similar_movies": [
-      {
-        "movieId": 2,
-        "title": "Jumanji",
-        "similarity_score": 0.85,
-        "genres": ["Adventure", "Children's", "Fantasy"]
-      }
-    ],
-    "ml_enhanced": true
-  },
-  "timestamp": "2024-01-01T12:00:00.000Z"
+    "release_date": "1995-10-30",
+    "budget": 30000000,
+    "revenue": 373554033,
+    "tagline": "The adventure takes off!",
+    "original_language": "en"
+  }
 }
 ```
 
 **Example**:
 ```bash
-# Get movie details
 curl http://127.0.0.1:5001/api/movies/1
-
-# Get movie details with personalized similar movies
-curl "http://127.0.0.1:5001/api/movies/1?user_id=123"
 ```
 
 ---
@@ -219,109 +392,195 @@ curl "http://127.0.0.1:5001/api/movies/1?user_id=123"
 
 ### Semantic Search
 
-Search for movies using natural language queries.
+Search for movies using natural language queries with ML-powered semantic understanding.
 
 #### `GET /search/semantic`
 
-**Description**: Performs semantic search using ML-powered text embeddings.
+**Description**: Performs semantic search using sentence-transformers embeddings to find movies matching the query's semantic meaning, not just keywords.
 
 **Parameters**:
-- `q` (query, required): Search query string
-- `limit` (query, optional): Number of results to return (default: 20, max: 50)
-- `user_id` (query, optional): User ID for personalized ranking
+- `q` (query, required): Natural language search query
+- `k` (query, optional): Number of results to return (default: 20, max: 100)
+- `user_id` (query, optional): User ID for personalized ranking with BERT4Rec reranking
 
 **Response**:
 ```json
 {
   "success": true,
-  "message": "Semantic search completed successfully",
+  "message": "Found 15 movies for 'action movies with robots'",
   "data": {
     "movies": [
       {
-        "movieId": 1,
-        "title": "Toy Story",
-        "overview": "A cowboy doll is profoundly threatened...",
-        "genres": ["Animation", "Children's", "Comedy"],
-        "poster_path": "/w4pJJ6VsZPNHdKJxCZZLfYRyPac.jpg",
-        "vote_average": 8.3,
-        "similarity_score": 0.95,
+        "movieId": 589,
+        "title": "Terminator 2: Judgment Day",
+        "overview": "Nearly 10 years have passed since Sarah Connor...",
+        "genres": ["Action", "Thriller", "Science Fiction"],
+        "poster_path": "/5M0j0B18abtBI5gi2RhfjjurTqb.jpg",
+        "vote_average": 8.1,
+        "vote_count": 3513,
+        "runtime": 137,
+        "release_date": "1991-07-03",
+        "similarity_score": 0.7234,
         "rank": 1
       }
     ],
     "total": 15,
-    "query": "animated movies for kids",
+    "query": "action movies with robots",
     "search_type": "semantic",
-    "ml_metadata": {
-      "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
-      "search_time_ms": 25,
-      "total_candidates": 1682
-    }
-  },
-  "timestamp": "2024-01-01T12:00:00.000Z"
+    "personalized": false
+  }
 }
 ```
 
 **Example**:
 ```bash
 # Basic semantic search
-curl "http://127.0.0.1:5001/api/search/semantic?q=action%20movies%20with%20robots"
+curl "http://127.0.0.1:5001/api/search/semantic?q=funny%20animated%20movies"
 
 # Personalized semantic search
-curl "http://127.0.0.1:5001/api/search/semantic?q=funny%20movies&limit=10&user_id=123"
+curl "http://127.0.0.1:5001/api/search/semantic?q=dark%20thriller&k=10&user_id=123"
+
+# Multi-word queries work great
+curl "http://127.0.0.1:5001/api/search/semantic?q=movies%20about%20space%20exploration"
 ```
+
+**How It Works**:
+
+1. **Query Encoding**: User query is encoded into a 384-dimensional vector using `sentence-transformers/all-MiniLM-L6-v2`
+2. **Similarity Search**: Compute cosine similarity between query vector and all 9,742 pre-computed movie embeddings
+3. **Candidate Retrieval**: Get top 3×k candidates (e.g., 60 candidates for k=20)
+4. **Reranking** (if user_id provided):
+   - Use BERT4Rec model to rerank based on user's interaction history
+   - Combine semantic similarity (60%) + personalization score (40%)
+5. **Return Top-k**: Return final top k results
+
+**Similarity Scores**:
+- Range: 0.0 to 1.0
+- Higher = better match
+- Typical good matches: 0.5-0.8
+- Perfect matches rare (would be ~1.0)
+
+**Model Details**:
+- **Embedding Model**: `sentence-transformers/all-MiniLM-L6-v2`
+- **Dimension**: 384
+- **Configuration**: `configs/semantic_search.yaml`
+- **Embeddings**: Pre-computed in `data/processed/content_features.parquet`
+
+**When Regeneration Needed**:
+- After changing embedding model in config
+- After updating movie dataset
+- Run: `dvc repro content_features`
+
+---
 
 ### Traditional Search
 
-Search for movies by title, genre, or keywords.
+Search for movies by title using case-insensitive partial matching.
 
-#### `GET /search/traditional`
+#### `GET /search/traditional` or `GET /search/`
 
-**Description**: Performs traditional text-based search using database queries.
+**Description**: Performs traditional title-based search when semantic search fails or as a fallback. Uses case-insensitive substring matching.
 
 **Parameters**:
 - `q` (query, required): Search query string
-- `limit` (query, optional): Number of results to return (default: 20, max: 50)
-- `genre` (query, optional): Filter by specific genre
-- `year` (query, optional): Filter by release year
+- `k` (query, optional): Number of results to return (default: 20, max: 100)
 
 **Response**:
 ```json
 {
   "success": true,
-  "message": "Traditional search completed successfully",
+  "message": "Found 5 movies for 'batman'",
   "data": {
     "movies": [
       {
-        "movieId": 1,
-        "title": "Toy Story",
-        "genres": ["Animation", "Children's", "Comedy"],
-        "poster_path": "/w4pJJ6VsZPNHdKJxCZZLfYRyPac.jpg",
-        "vote_average": 8.3,
-        "release_date": "1995-10-30",
-        "match_score": 0.98,
-        "match_type": "title"
+        "movieId": 268,
+        "title": "Batman",
+        "overview": "The Dark Knight of Gotham City...",
+        "genres": ["Fantasy", "Action"],
+        "poster_path": "/kBf3g9crrADGMc2AMAMlLBgSm2h.jpg",
+        "vote_average": 7.2,
+        "vote_count": 1511,
+        "runtime": 126,
+        "release_date": "1989-06-23",
+        "rank": 1
+      },
+      {
+        "movieId": 364,
+        "title": "Batman Returns",
+        "overview": "Having defeated the Joker...",
+        "genres": ["Action", "Fantasy"],
+        "poster_path": "/jKBjeXM7iBBV9UkUcOXx3m7FSHY.jpg",
+        "vote_average": 6.8,
+        "vote_count": 1084,
+        "runtime": 126,
+        "release_date": "1992-06-19",
+        "rank": 2
       }
     ],
     "total": 5,
-    "query": "toy story",
-    "search_type": "traditional",
-    "filters": {
-      "genre": null,
-      "year": null
-    }
-  },
-  "timestamp": "2024-01-01T12:00:00.000Z"
+    "query": "batman",
+    "search_type": "traditional"
+  }
 }
 ```
 
 **Example**:
 ```bash
-# Basic traditional search
+# Search by title
 curl "http://127.0.0.1:5001/api/search/traditional?q=star%20wars"
 
-# Filtered search
-curl "http://127.0.0.1:5001/api/search/traditional?q=action&genre=Action&year=1995"
+# Search with limit
+curl "http://127.0.0.1:5001/api/search/traditional?q=terminator&k=5"
 ```
+
+**Search Algorithm**:
+- Case-insensitive: "BATMAN" matches "Batman"
+- Substring match: "term" matches "Terminator 2"
+- Uses MovieService.search_movies_by_title()
+- No semantic understanding (exact keyword matching only)
+
+**When Used**:
+- Automatically as fallback when semantic search fails
+- Frontend tries semantic first, then traditional
+- Best for exact title searches
+
+---
+
+### Search Status
+
+Check semantic search engine health and configuration.
+
+#### `GET /search/status`
+
+**Description**: Returns status information about the search engine, including model availability and statistics.
+
+**Parameters**: None
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Search service status retrieved",
+  "data": {
+    "semantic_engine_available": true,
+    "config_path": "/path/to/configs/semantic_search.yaml",
+    "service": "SearchService",
+    "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+    "total_movies_indexed": 9742,
+    "embedding_dimension": 384
+  }
+}
+```
+
+**Example**:
+```bash
+curl http://127.0.0.1:5001/api/search/status
+```
+
+**Troubleshooting**:
+- If `semantic_engine_available: false`, check logs for initialization errors
+- Common issues: Missing torch/transformers, embedding dimension mismatch
+- See troubleshooting docs for solutions
 
 ---
 
@@ -329,166 +588,101 @@ curl "http://127.0.0.1:5001/api/search/traditional?q=action&genre=Action&year=19
 
 ### Personalized Recommendations
 
-Get personalized movie recommendations for a specific user.
+Get personalized movie recommendations using BERT4Rec sequential model.
 
-#### `GET /recommendations/personalized`
+#### `POST /recommendations/personalized`
 
-**Description**: Returns ML-powered personalized recommendations using BERT4Rec model.
+**Description**: Returns personalized recommendations based on user's interaction history using BERT4Rec model.
 
 **Parameters**:
-- `user_id` (query, required): User ID for recommendations (1-610)
-- `limit` (query, optional): Number of recommendations (default: 10, max: 50)
-- `model` (query, optional): ML model to use ('bert4rec', 'two_tower', 'hybrid')
+- Body (JSON):
+```json
+{
+  "user_id": "123",
+  "interaction_history": [
+    {"movieId": 1, "rating": 5.0, "timestamp": "1997-01-01T00:00:00Z"},
+    {"movieId": 2, "rating": 4.0, "timestamp": "1997-01-02T00:00:00Z"}
+  ]
+}
+```
 
 **Response**:
 ```json
 {
   "success": true,
-  "message": "Personalized recommendations generated successfully",
+  "message": "Recommendations generated",
   "data": {
     "movies": [
       {
-        "movieId": 1,
-        "title": "Toy Story",
-        "genres": ["Animation", "Children's", "Comedy"],
-        "poster_path": "/w4pJJ6VsZPNHdKJxCZZLfYRyPac.jpg",
-        "vote_average": 8.3,
-        "personalized_score": 0.95,
-        "rank": 1,
-        "prediction_confidence": 0.87
-      }
-    ],
-    "total": 10,
-    "recommendation_type": "personalized",
-    "user_context": {
-      "user_id": "123",
-      "model_used": "bert4rec",
-      "sequence_length": 50,
-      "user_history_size": 45,
-      "inference_time_ms": 75
-    }
-  },
-  "timestamp": "2024-01-01T12:00:00.000Z"
-}
-```
-
-**Example**:
-```bash
-# Get personalized recommendations
-curl "http://127.0.0.1:5001/api/recommendations/personalized?user_id=123"
-
-# Get recommendations with specific model
-curl "http://127.0.0.1:5001/api/recommendations/personalized?user_id=123&limit=20&model=bert4rec"
-```
-
-### Similar Movies
-
-Get movies similar to a specific movie.
-
-#### `GET /recommendations/similar/{movie_id}`
-
-**Description**: Returns movies similar to the specified movie using content-based filtering.
-
-**Parameters**:
-- `movie_id` (path): Reference movie ID
-- `limit` (query, optional): Number of similar movies (default: 10, max: 20)
-- `user_id` (query, optional): User ID for personalized ranking
-
-**Response**:
-```json
-{
-  "success": true,
-  "message": "Similar movies found successfully",
-  "data": {
-    "reference_movie": {
-      "movieId": 1,
-      "title": "Toy Story"
-    },
-    "similar_movies": [
-      {
-        "movieId": 2,
-        "title": "Jumanji",
-        "genres": ["Adventure", "Children's", "Fantasy"],
-        "similarity_score": 0.85,
-        "similarity_reason": "genre_and_content",
+        "movieId": 3,
+        "title": "Grumpier Old Men",
+        "overview": "A family wedding reignites...",
+        "genres": ["Romance", "Comedy"],
+        "poster_path": "/1FSXpj5e8l4KH6nVFO5SPUeraOt.jpg",
+        "vote_average": 6.5,
+        "vote_count": 92,
+        "runtime": 101,
+        "release_date": "1995-12-22",
+        "personalized_score": 0.89,
         "rank": 1
       }
     ],
-    "total": 10,
-    "recommendation_type": "similar",
-    "similarity_method": "content_based"
-  },
-  "timestamp": "2024-01-01T12:00:00.000Z"
+    "total": 10
+  }
 }
 ```
 
 **Example**:
 ```bash
-# Get similar movies
-curl http://127.0.0.1:5001/api/recommendations/similar/1
-
-# Get personalized similar movies
-curl "http://127.0.0.1:5001/api/recommendations/similar/1?user_id=123&limit=5"
+curl -X POST http://127.0.0.1:5001/api/recommendations/personalized \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "123",
+    "interaction_history": [
+      {"movieId": 1, "rating": 5.0, "timestamp": "1997-01-01T00:00:00Z"}
+    ]
+  }'
 ```
+
+**Model**: BERT4Rec (Bidirectional Encoder Representations from Transformers for Recommender)
+**Input**: User's sequential interaction history
+**Output**: Top-k personalized recommendations
 
 ---
 
-## 📊 Analytics Endpoints
+## 💬 Feedback Endpoints
 
-### User Analytics
+### Submit Movie Rating
 
-Get analytics and statistics for user behavior.
+Submit a user's rating for a movie.
 
-#### `GET /analytics/user/{user_id}`
+#### `POST /feedback/rating`
 
-**Description**: Returns detailed analytics for a specific user's movie preferences and behavior.
+**Description**: Record user feedback with a numerical rating.
 
 **Parameters**:
-- `user_id` (path): User ID for analytics
+- Body (JSON):
+```json
+{
+  "user_id": "123",
+  "movie_id": 1,
+  "rating": 4.5
+}
+```
 
 **Response**:
 ```json
 {
   "success": true,
-  "message": "User analytics retrieved successfully",
-  "data": {
-    "user_id": 123,
-    "rating_statistics": {
-      "total_ratings": 150,
-      "avg_rating": 3.8,
-      "rating_distribution": {
-        "1": 5,
-        "2": 15,
-        "3": 45,
-        "4": 60,
-        "5": 25
-      }
-    },
-    "genre_preferences": [
-      {
-        "genre": "Action",
-        "count": 35,
-        "avg_rating": 4.1
-      },
-      {
-        "genre": "Sci-Fi",
-        "count": 28,
-        "avg_rating": 4.3
-      }
-    ],
-    "activity_timeline": {
-      "first_rating": "1997-01-01T00:00:00.000Z",
-      "last_rating": "1998-12-31T23:59:59.000Z",
-      "most_active_month": "1998-06"
-    }
-  },
-  "timestamp": "2024-01-01T12:00:00.000Z"
+  "message": "Rating submitted successfully"
 }
 ```
 
 **Example**:
 ```bash
-curl http://127.0.0.1:5001/api/analytics/user/123
+curl -X POST http://127.0.0.1:5001/api/feedback/rating \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "123", "movie_id": 1, "rating": 4.5}'
 ```
 
 ---
@@ -503,95 +697,44 @@ All errors follow a consistent format:
 {
   "success": false,
   "message": "Human-readable error description",
-  "error": {
-    "code": "ERROR_CODE",
-    "details": "Technical error details",
-    "field": "field_name (for validation errors)"
-  },
-  "timestamp": "2024-01-01T12:00:00.000Z"
+  "error_code": "ERROR_CODE",
+  "details": "Technical error details (optional)"
 }
 ```
-
-### HTTP Status Codes
-
-| Status Code | Description | Example |
-|-------------|-------------|---------|
-| `200` | Success | Successful API call |
-| `400` | Bad Request | Invalid parameters or malformed request |
-| `404` | Not Found | Movie or user not found |
-| `422` | Validation Error | Invalid user ID or parameter values |
-| `500` | Internal Server Error | Database connection failed or ML model error |
-| `503` | Service Unavailable | ML models not loaded or system maintenance |
 
 ### Common Error Codes
 
-#### Validation Errors (400)
+| Error Code | HTTP Status | Description |
+|------------|-------------|-------------|
+| `VALIDATION_ERROR` | 400 | Invalid request parameters |
+| `MOVIE_NOT_FOUND` | 404 | Movie ID doesn't exist |
+| `USER_NOT_FOUND` | 404 | User ID not in valid range (1-610) |
+| `SEARCH_ENGINE_ERROR` | 503 | Semantic search engine unavailable |
+| `ML_MODEL_ERROR` | 503 | BERT4Rec or Two-Tower model failed |
+| `INTERNAL_ERROR` | 500 | Unexpected server error |
+
+### Example Error Responses
+
+**Validation Error**:
 ```json
 {
   "success": false,
-  "message": "Invalid user ID",
-  "error": {
-    "code": "INVALID_USER_ID",
-    "details": "User ID must be between 1 and 610",
-    "field": "user_id"
-  }
+  "message": "Query parameter 'q' is required",
+  "error_code": "VALIDATION_ERROR",
+  "details": "Search query cannot be empty"
 }
 ```
 
-#### Not Found Errors (404)
+**Service Unavailable**:
 ```json
 {
   "success": false,
-  "message": "Movie not found",
-  "error": {
-    "code": "MOVIE_NOT_FOUND",
-    "details": "No movie found with ID 99999"
-  }
-}
-```
-
-#### ML Model Errors (500)
-```json
-{
-  "success": false,
-  "message": "Recommendation model unavailable",
-  "error": {
-    "code": "ML_MODEL_ERROR",
-    "details": "BERT4Rec model failed to load"
-  }
-}
-```
-
----
-
-## 🔧 Rate Limiting
-
-### Rate Limits
-
-| Endpoint Category | Rate Limit | Window |
-|------------------|------------|--------|
-| **Health/Info** | 60 requests | 1 minute |
-| **Search** | 30 requests | 1 minute |
-| **Recommendations** | 20 requests | 1 minute |
-| **Movie Details** | 100 requests | 1 minute |
-
-### Rate Limit Headers
-
-```http
-X-RateLimit-Limit: 30
-X-RateLimit-Remaining: 25
-X-RateLimit-Reset: 1640995200
-```
-
-### Rate Limit Exceeded Response
-
-```json
-{
-  "success": false,
-  "message": "Rate limit exceeded",
-  "error": {
-    "code": "RATE_LIMIT_EXCEEDED",
-    "details": "Maximum 30 requests per minute for search endpoints"
+  "message": "Search failed: Search engine not available",
+  "error_code": "SEARCH_ENGINE_ERROR",
+  "details": {
+    "movies": [],
+    "total": 0,
+    "error": "Search engine not available"
   }
 }
 ```
@@ -600,82 +743,127 @@ X-RateLimit-Reset: 1640995200
 
 ## 🧪 Testing the API
 
-### Using cURL
+### Quick Test Commands
 
 ```bash
-# Test all endpoints
+# Health check
 curl http://127.0.0.1:5001/api/health
+
+# User info
 curl http://127.0.0.1:5001/api/users/info
+
+# Get user profile
+curl http://127.0.0.1:5001/api/users/1/profile
+
+# Popular movies
 curl "http://127.0.0.1:5001/api/movies/popular?limit=5"
-curl "http://127.0.0.1:5001/api/search/semantic?q=action%20movies"
-curl "http://127.0.0.1:5001/api/recommendations/personalized?user_id=123"
+
+# Semantic search
+curl "http://127.0.0.1:5001/api/search/semantic?q=action%20movies&k=5"
+
+# Traditional search
+curl "http://127.0.0.1:5001/api/search/traditional?q=batman"
+
+# Movie details
+curl http://127.0.0.1:5001/api/movies/1
+
+# User's watched movies
+curl http://127.0.0.1:5001/api/users/1/watched
+
+# Historical interest
+curl http://127.0.0.1:5001/api/users/1/historical-interest
+
+# Search status
+curl http://127.0.0.1:5001/api/search/status
 ```
 
-### Using Python
+### Testing with Python
 
 ```python
 import requests
 
-# API base URL
-API_URL = "http://127.0.0.1:5001/api"
+API_BASE = "http://127.0.0.1:5001/api"
 
-# Test search
-response = requests.get(f"{API_URL}/search/semantic", params={
-    "q": "funny movies for kids",
-    "limit": 10,
-    "user_id": 123
+# Test semantic search
+response = requests.get(f"{API_BASE}/search/semantic", params={
+    "q": "funny animated movies for kids",
+    "k": 10,
+    "user_id": "1"
 })
 
 data = response.json()
 if data["success"]:
     movies = data["data"]["movies"]
-    print(f"Found {len(movies)} movies")
+    for movie in movies:
+        print(f"{movie['title']} - Score: {movie.get('similarity_score', 'N/A')}")
 else:
     print(f"Error: {data['message']}")
 ```
 
-### Using JavaScript
+### Frontend Integration Pattern
 
-```javascript
-// API client example
-class MovieAPI {
-  constructor(baseURL = 'http://127.0.0.1:5001/api') {
-    this.baseURL = baseURL;
-  }
+```typescript
+// API client in frontend/src/lib/api.ts
+class MovieGenieAPI {
+  static async searchMovies(query: string, useSemanticSearch: boolean, userId?: string) {
+    const endpoint = useSemanticSearch ? '/search/semantic' : '/search/traditional';
+    const url = `${API_BASE}${endpoint}?q=${encodeURIComponent(query)}`;
 
-  async searchMovies(query, limit = 20, userId = null) {
-    const params = new URLSearchParams({ q: query, limit });
-    if (userId) params.append('user_id', userId);
+    const response = await fetch(url);
+    const jsonResponse = await response.json();
 
-    const response = await fetch(`${this.baseURL}/search/semantic?${params}`);
-    const data = await response.json();
-
-    if (!data.success) {
-      throw new Error(data.message);
+    // Unwrap the {success, data, message} wrapper
+    if (jsonResponse.success && jsonResponse.data !== undefined) {
+      return jsonResponse.data;
     }
 
-    return data.data;
-  }
-
-  async getRecommendations(userId, limit = 10) {
-    const response = await fetch(
-      `${this.baseURL}/recommendations/personalized?user_id=${userId}&limit=${limit}`
-    );
-    const data = await response.json();
-
-    if (!data.success) {
-      throw new Error(data.message);
-    }
-
-    return data.data;
+    throw new Error(jsonResponse.message);
   }
 }
-
-// Usage
-const api = new MovieAPI();
-const movies = await api.searchMovies("action movies", 10, 123);
 ```
 
 ---
 
-*This API reference provides complete documentation for integrating with Movie Genie's backend services. All endpoints are designed to be RESTful, well-documented, and easy to test.* 📚
+## 📝 Notes for Future Reference
+
+### Poster Image Display
+
+All `poster_path` values are relative paths from TMDB. To display:
+
+```typescript
+// Transform in frontend
+const fullPosterUrl = movie.poster_path
+  ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+  : null;
+```
+
+### Genre Format Handling
+
+Backend always returns genres as arrays, but parquet files may have pipe-separated strings. The `_parse_genres()` utility handles both:
+
+```python
+# Backend parsing
+def _parse_genres(genres_data):
+    if isinstance(genres_data, str):
+        if '|' in genres_data:
+            return [g.strip() for g in genres_data.split('|')]
+    return genres_data if isinstance(genres_data, list) else []
+```
+
+### Response Unwrapping
+
+Frontend automatically unwraps responses in `api.ts`:
+
+```typescript
+if (jsonResponse.success && jsonResponse.data !== undefined) {
+  return jsonResponse.data;  // Return unwrapped data
+}
+```
+
+This means frontend code works with `SearchResponse` directly, not `{success, data, message}`.
+
+---
+
+*Last Updated: 2025-01-04*
+*For implementation details, see: docs/backend-frontend/backend-integration.md*
+*For semantic search internals, see: docs/machine-learning/semantic-search.md*

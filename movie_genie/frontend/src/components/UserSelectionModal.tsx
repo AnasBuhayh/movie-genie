@@ -6,7 +6,7 @@ import { MovieGenieAPI, UserInfo } from '../lib/api';
 
 interface UserSelectionModalProps {
   isOpen: boolean;
-  onUserSelect: (userId: string) => void;
+  onUserSelect: (userId: string) => Promise<void>;
 }
 
 export const UserSelectionModal: React.FC<UserSelectionModalProps> = ({
@@ -21,6 +21,10 @@ export const UserSelectionModal: React.FC<UserSelectionModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      // Reset all state when modal opens
+      setUserId("");
+      setIsLoggingIn(false);
+      setError(null);
       fetchUserInfo();
     }
   }, [isOpen]);
@@ -53,11 +57,14 @@ export const UserSelectionModal: React.FC<UserSelectionModalProps> = ({
 
     setIsLoggingIn(true);
 
-    // Simulate login/loading process
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    setIsLoggingIn(false);
-    onUserSelect(userId);
+    try {
+      // Wait for actual data to load (passed from parent)
+      await onUserSelect(userId);
+    } catch (error) {
+      console.error('Error during user selection:', error);
+      setError('Failed to load your personalized data. Please try again.');
+      setIsLoggingIn(false);
+    }
   };
 
   const getValidationMessage = (): string | null => {
@@ -109,8 +116,22 @@ export const UserSelectionModal: React.FC<UserSelectionModalProps> = ({
         ) : isLoggingIn ? (
           <div className="text-center py-8">
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-            <p className="text-gray-600">Logging in as User {userId}...</p>
-            <p className="text-sm text-gray-500 mt-2">Loading your personalized experience</p>
+            <p className="text-gray-600">Loading your personalized experience...</p>
+            <p className="text-sm text-gray-500 mt-2">User {userId}</p>
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+                <span>Fetching movie recommendations</span>
+              </div>
+              <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '150ms'}}></div>
+                <span>Analyzing viewing history</span>
+              </div>
+              <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '300ms'}}></div>
+                <span>Personalizing content</span>
+              </div>
+            </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">

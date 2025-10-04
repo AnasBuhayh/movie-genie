@@ -144,6 +144,7 @@ class MovieService:
                     'popularity': float(movie.get('popularity', 0)) if pd.notna(movie.get('popularity')) else None,
                     'release_date': str(movie.get('release_date', '')) if pd.notna(movie.get('release_date')) else None,
                     'poster_path': str(movie.get('poster_path', '')) if pd.notna(movie.get('poster_path')) else None,
+                    'runtime': int(movie.get('runtime', 0)) if pd.notna(movie.get('runtime')) else None,
                 }
                 movies_list.append(movie_dict)
 

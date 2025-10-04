@@ -69,8 +69,19 @@ export function MovieThumbnail({
             onError={() => setImageError(true)}
           />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center text-muted-foreground text-sm">
-            {movie.title}
+          <div className="w-full h-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center p-4">
+            <p className="text-muted-foreground text-sm text-center line-clamp-3">
+              {movie.title || 'No Title'}
+            </p>
+          </div>
+        )}
+
+        {/* Always show title overlay at bottom when image is present */}
+        {shouldShowImage && (
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+            <h4 className="text-white text-xs font-medium line-clamp-2">
+              {movie.title}
+            </h4>
           </div>
         )}
         

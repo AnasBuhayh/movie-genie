@@ -20,11 +20,13 @@ export const API_ENDPOINTS = {
 
   // User feedback endpoints
   FEEDBACK: `${API_BASE_URL}/feedback`,
-  RATING: `${API_BASE_URL}/rating`,
+  RATING: `${API_BASE_URL}/feedback/rating`,
 
   // User endpoints
   USER_INFO: `${API_BASE_URL}/users/info`,
   USER_PROFILE: (userId: number) => `${API_BASE_URL}/users/${userId}/profile`,
+  USER_WATCHED: (userId: number) => `${API_BASE_URL}/users/${userId}/watched`,
+  USER_HISTORICAL_INTEREST: (userId: number) => `${API_BASE_URL}/users/${userId}/historical-interest`,
 } as const;
 
 // API Response Types
@@ -99,6 +101,15 @@ export interface UserProfile {
   recommendation_ready: boolean;
 }
 
+// Backend API Response wrapper
+interface APIResponse<T> {
+  success: boolean;
+  data: T;
+  message: string;
+  error_code?: string;
+  details?: any;
+}
+
 // API Service Functions
 export class MovieGenieAPI {
   private static async fetchAPI<T>(url: string, options?: RequestInit): Promise<T> {
@@ -112,10 +123,19 @@ export class MovieGenieAPI {
       });
 
       if (!response.ok) {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `API Error: ${response.status} ${response.statusText}`);
       }
 
-      return response.json();
+      const jsonResponse: APIResponse<T> = await response.json();
+
+      // Unwrap the backend response format
+      if (jsonResponse.success && jsonResponse.data !== undefined) {
+        return jsonResponse.data;
+      }
+
+      // If response doesn't have the wrapper format, return as-is
+      return jsonResponse as unknown as T;
     } catch (error) {
       console.error('API Request failed:', error);
       throw error;
@@ -123,9 +143,12 @@ export class MovieGenieAPI {
   }
 
   // Search Movies
-  static async searchMovies(query: string, useSemanticSearch = true): Promise<SearchResponse> {
+  static async searchMovies(query: string, useSemanticSearch = true, userId?: string): Promise<SearchResponse> {
     const endpoint = useSemanticSearch ? API_ENDPOINTS.SEMANTIC_SEARCH : API_ENDPOINTS.SEARCH;
-    const url = `${endpoint}?q=${encodeURIComponent(query)}`;
+    let url = `${endpoint}?q=${encodeURIComponent(query)}`;
+    if (userId) {
+      url += `&user_id=${userId}`;
+    }
 
     return this.fetchAPI<SearchResponse>(url);
   }
@@ -195,13 +218,24 @@ export class MovieGenieAPI {
 
   // Get User Information
   static async getUserInfo(): Promise<UserInfo> {
-    const response = await this.fetchAPI<{data: UserInfo, success: boolean, message: string}>(API_ENDPOINTS.USER_INFO);
-    return response.data;
+    return this.fetchAPI<UserInfo>(API_ENDPOINTS.USER_INFO);
   }
 
   // Get User Profile
   static async getUserProfile(userId: number): Promise<UserProfile> {
     return this.fetchAPI<UserProfile>(API_ENDPOINTS.USER_PROFILE(userId));
+  }
+
+  // Get User's Watched Movies
+  static async getUserWatchedMovies(userId: number, limit: number = 20): Promise<RecommendationResponse> {
+    const url = `${API_ENDPOINTS.USER_WATCHED(userId)}?limit=${limit}`;
+    return this.fetchAPI<RecommendationResponse>(url);
+  }
+
+  // Get User's Historical Interest
+  static async getUserHistoricalInterest(userId: number, limit: number = 20): Promise<RecommendationResponse> {
+    const url = `${API_ENDPOINTS.USER_HISTORICAL_INTEREST(userId)}?limit=${limit}`;
+    return this.fetchAPI<RecommendationResponse>(url);
   }
 }
 

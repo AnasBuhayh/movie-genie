@@ -94,41 +94,43 @@ class MovieEmbeddingLoader:
     def _extract_embedding_safely(self, movie_row) -> Optional[np.ndarray]:
         """
         Safely extract text embedding from a movie row, handling various storage formats.
-        
+
         This method demonstrates defensive programming for data processing. Your
         embeddings might be stored as lists, numpy arrays, or other formats depending
         on how the parquet serialization handled them. We need to handle all these
         cases gracefully.
+
+        Supports embeddings of any dimension (384 for all-MiniLM, 768 for EmbeddingGemma, etc.)
         """
         text_embedding = movie_row.get('text_embedding')
-        
+
         if text_embedding is None:
             return None
-        
+
         try:
             # Handle different possible storage formats
             if isinstance(text_embedding, list):
-                if len(text_embedding) == 768:  # EmbeddingGemma dimension
+                if len(text_embedding) > 0:  # Accept any valid dimension
                     return np.array(text_embedding, dtype=np.float32)
             elif isinstance(text_embedding, np.ndarray):
-                if text_embedding.shape == (768,):
+                if len(text_embedding.shape) == 1 and text_embedding.shape[0] > 0:
                     return text_embedding.astype(np.float32)
             else:
                 # Try to convert other formats
                 converted = np.array(text_embedding)
-                if converted.shape == (768,):
+                if len(converted.shape) == 1 and converted.shape[0] > 0:
                     return converted.astype(np.float32)
-        
+
         except (ValueError, TypeError) as e:
             # Log the error but continue processing other movies
             logging.debug(f"Failed to extract embedding for movie {movie_row.get('title', 'Unknown')}: {e}")
-        
+
         return None
     
     def _extract_movie_metadata(self, movie_row) -> Dict[str, Any]:
         """
         Extract essential movie metadata for search result presentation.
-        
+
         When users see search results, they need enough information to understand
         what each movie is about and decide if it matches their intent. This method
         selects the most important metadata fields for result presentation.
@@ -140,7 +142,9 @@ class MovieEmbeddingLoader:
             'genres': movie_row.get('genres', []),
             'release_date': movie_row.get('release_date', ''),
             'vote_average': movie_row.get('vote_average', 0.0),
-            'vote_count': movie_row.get('vote_count', 0)
+            'vote_count': movie_row.get('vote_count', 0),
+            'poster_path': movie_row.get('poster_path', None),
+            'runtime': movie_row.get('runtime', None)
         }
     
     def get_embeddings_and_metadata(self) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
@@ -494,7 +498,13 @@ class SemanticSearchEngine:
                 'overview': movie_info['overview'],
                 'genres': movie_info.get('genres', []),
                 'similarity_score': float(similarities[movie_idx]),
-                'rank': rank + 1
+                'rank': rank + 1,
+                # Include all metadata fields for frontend display
+                'vote_average': movie_info.get('vote_average'),
+                'vote_count': movie_info.get('vote_count'),
+                'release_date': movie_info.get('release_date'),
+                'poster_path': movie_info.get('poster_path'),
+                'runtime': movie_info.get('runtime')
             })
         
         # Apply reranking if user context is provided

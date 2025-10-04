@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { MovieSearch } from "@/components/MovieSearch";
 import { MovieDetails } from "@/components/MovieDetails";
 import { RecommendationCarousel } from "@/components/RecommendationCarousel";
@@ -24,9 +24,12 @@ import MovieDataService, { type MovieData } from "@/services/movieDataService";
 
 // Placeholder movie for initial state
 const placeholderMovie = {
-  title: "Search for a movie to see details",
-  genres: [""],
-  description: "Use the search above to find movies and get personalized recommendations based on your preferences.",
+  title: "Select a movie to see details",
+  genres: [],
+  description: "Click on any movie thumbnail to view detailed information including ratings, runtime, and more.",
+  rating: undefined,
+  voteCount: undefined,
+  runtime: undefined,
   likes: [],
   dislikes: []
 };
@@ -45,47 +48,20 @@ const Index = () => {
   const [watchedMovies, setWatchedMovies] = useState<MovieData[]>([]);
   const [isLoadingMovies, setIsLoadingMovies] = useState(false);
 
-  // Load movie data when user is selected
-  useEffect(() => {
-    if (!isUserSelected) return;
-
-    const loadMovieData = async () => {
-      setIsLoadingMovies(true);
-      try {
-        const [popular, personalized, historical, watched] = await Promise.all([
-          MovieDataService.getPopularMovies(10),
-          MovieDataService.getPersonalizedRecommendations(userId, 10),
-          MovieDataService.getHistoricalInterest(userId, 10),
-          MovieDataService.getUserWatchedMovies(userId, 8),
-        ]);
-
-        setPopularMovies(popular);
-        setPersonalizedMovies(personalized);
-        setHistoricalMovies(historical);
-        setWatchedMovies(watched);
-      } catch (error) {
-        console.error('Failed to load movie data:', error);
-      } finally {
-        setIsLoadingMovies(false);
-      }
-    };
-
-    loadMovieData();
-  }, [isUserSelected, userId]);
+  // Movie data is now loaded in handleUserSelect, no need for separate useEffect
 
   // Get movie details for selected movie
   const { data: movieDetails } = useMovieDetails(selectedMovieId, !!selectedMovieId && isUserSelected);
 
   // Current movie for details panel
   const currentMovie = movieDetails ? {
-    title: movieDetails.title,
+    title: movieDetails.title || "Unknown Title",
     genres: movieDetails.genres || [],
-    description: movieDetails.overview,
-    likes: [
-      `Rating: ${movieDetails.vote_average}/10`,
-      `${movieDetails.vote_count} votes`,
-      ...(movieDetails.runtime ? [`Runtime: ${movieDetails.runtime} minutes`] : [])
-    ],
+    description: movieDetails.overview || "No description available.",
+    rating: movieDetails.vote_average,
+    voteCount: movieDetails.vote_count,
+    runtime: movieDetails.runtime,
+    likes: [],
     dislikes: []
   } : placeholderMovie;
 
@@ -110,9 +86,31 @@ const Index = () => {
     setSelectedMovieId("");
   };
 
-  const handleUserSelect = (selectedUserId: string) => {
+  const handleUserSelect = async (selectedUserId: string) => {
+    // Set user ID first
     setUserId(selectedUserId);
     setIsUserSelected(true);
+    setIsLoadingMovies(true);
+
+    try {
+      // Load all movie data before closing modal
+      const [popular, personalized, historical, watched] = await Promise.all([
+        MovieDataService.getPopularMovies(10),
+        MovieDataService.getPersonalizedRecommendations(selectedUserId, 10),
+        MovieDataService.getHistoricalInterest(selectedUserId, 10),
+        MovieDataService.getUserWatchedMovies(selectedUserId, 8),
+      ]);
+
+      setPopularMovies(popular);
+      setPersonalizedMovies(personalized);
+      setHistoricalMovies(historical);
+      setWatchedMovies(watched);
+    } catch (error) {
+      console.error('Failed to load movie data:', error);
+      throw error; // Propagate error to modal
+    } finally {
+      setIsLoadingMovies(false);
+    }
   };
 
   const handleChangeUser = () => {
@@ -165,6 +163,7 @@ const Index = () => {
               {isSearchMode ? (
                 <SearchResultsGrid
                   searchQuery={searchQuery}
+                  userId={userId}
                   onMovieClick={handleMovieClick}
                   onBackToMain={handleBackToMain}
                 />

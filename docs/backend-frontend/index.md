@@ -265,9 +265,22 @@ npm run test:e2e
 
 For comprehensive implementation details, see:
 
-- **[Backend Integration](backend-integration.md)**: Flask setup, service layer, and database integration
+- **[Backend Integration](backend-integration.md)**: Flask setup, service layer, database integration, and endpoint connection
 - **[ML Integration](ml-integration.md)**: Step-by-step ML model to frontend connection
 - **[API Reference](api-reference.md)**: Complete endpoint documentation with examples
+
+### What's in Each Guide
+
+- **Backend Integration**: Covers the complete Flask application setup including:
+    - Frontend-backend integration and build process
+    - API architecture and blueprints
+    - ML infrastructure integration
+    - **Endpoint connection setup** with API mapping and configuration
+    - Starting the application and troubleshooting
+
+- **ML Integration**: Step-by-step guide for connecting ML models to the web interface
+
+- **API Reference**: Detailed API endpoint documentation with request/response examples
 
 ## Troubleshooting
 

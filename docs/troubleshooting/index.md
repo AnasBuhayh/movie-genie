@@ -230,6 +230,200 @@ rm movie_genie/backend/movie_genie.db
 dvc repro data_processing setup_database
 ```
 
+## Search Issues
+
+### Semantic Search Returning Irrelevant Results
+
+**Symptom**: Searching for "batman" returns "Zoolander" or other unrelated movies.
+
+**Root Cause**: Using EmbeddingGemma-300M model which has poor semantic alignment.
+
+**Solution**:
+```bash
+# 1. Verify current model
+grep model_name configs/semantic_search.yaml
+
+# Should be: sentence-transformers/all-MiniLM-L6-v2
+# If not, update both configs:
+vim configs/semantic_search.yaml  # Change model_name
+vim configs/data.yaml              # Change embedding_model
+
+# 2. Regenerate embeddings
+dvc repro content_features
+
+# 3. Restart backend
+dvc repro backend_server
+
+# 4. Test search quality
+curl "http://127.0.0.1:5001/api/search/semantic?q=batman&k=5"
+# Should return actual Batman movies
+```
+
+**Evidence of Problem**:
+```python
+# Test embedding quality
+python3 << 'EOF'
+from movie_genie.data.embeddings import TextEmbedder
+import numpy as np
+
+embedder = TextEmbedder("google/embeddinggemma-300M")  # BAD MODEL
+
+batman_emb = embedder.embed_texts(["batman"])[0]
+zoolander_emb = embedder.embed_texts(["zoolander comedy"])[0]
+
+# Normalize
+batman = batman_emb / np.linalg.norm(batman_emb)
+zoolander = zoolander_emb / np.linalg.norm(zoolander_emb)
+
+similarity = np.dot(batman, zoolander)
+print(f"Similarity: {similarity:.4f}")  # Will be HIGH (0.85+) - WRONG!
+EOF
+```
+
+---
+
+### Search Engine Not Loading
+
+**Symptom**: Backend logs show "Failed to initialize SemanticSearchEngine"
+
+**Diagnostic Steps**:
+```bash
+# 1. Check if LLM dependencies installed
+python3 -c "import torch; import transformers; print('✓ Dependencies OK')"
+
+# If fails, install:
+pip install -e ".[llm]"
+
+# 2. Check embedding dimension
+python3 << 'EOF'
+import pandas as pd
+import numpy as np
+df = pd.read_parquet('data/processed/content_features.parquet')
+if 'text_embedding' in df.columns:
+    emb = np.array(df['text_embedding'].iloc[0])
+    print(f"Dimension: {emb.shape}")  # Should be (384,)
+else:
+    print("❌ No text_embedding column found!")
+EOF
+
+# 3. Verify config consistency
+grep model_name configs/semantic_search.yaml
+grep embedding_model configs/data.yaml
+# Both should match!
+```
+
+**Common Causes**:
+
+1. **Missing torch/transformers**:
+   ```bash
+   pip install -e ".[llm]"
+   ```
+
+2. **Embedding dimension mismatch**:
+   ```bash
+   # The semantic_engine.py was hardcoded for 768-dim
+   # Fixed to accept any dimension
+   # If still broken, regenerate embeddings:
+   dvc repro content_features
+   ```
+
+3. **Model download failed**:
+   ```bash
+   # Check cache
+   ls ~/.cache/huggingface/hub/ | grep all-MiniLM
+
+   # Force re-download if corrupted
+   rm -rf ~/.cache/huggingface/hub/*all-MiniLM*
+   dvc repro backend_server  # Will re-download
+   ```
+
+---
+
+### Poster Images Not Showing
+
+**Symptom**: Search results and movie thumbnails show placeholder text instead of images.
+
+**Root Cause**: Backend not returning `poster_path` field or frontend not transforming it correctly.
+
+**Diagnostic Steps**:
+```bash
+# 1. Check backend returns poster_path
+curl "http://127.0.0.1:5001/api/search/semantic?q=batman&k=1" | jq '.data.movies[0].poster_path'
+
+# Should return: "/xyz.jpg"
+# If null, check search_service.py includes poster_path in results
+
+# 2. Check frontend transformation
+# Should be in movieDataService.ts:
+#   poster_url: apiMovie.poster_path
+#     ? `https://image.tmdb.org/t/p/w500${apiMovie.poster_path}`
+#     : null
+```
+
+**Solution**:
+```bash
+# Already fixed in:
+# - movie_genie/search/semantic_engine.py (line 146-147, 502-507)
+# - movie_genie/backend/app/services/search_service.py (line 89)
+
+# If broken, verify:
+cat movie_genie/search/semantic_engine.py | grep poster_path
+cat movie_genie/backend/app/services/search_service.py | grep poster_path
+```
+
+---
+
+### Mock Data Showing Before Real Data
+
+**Symptom**: Brief flash of "Popular Movie 1, 2, 3" before real data loads.
+
+**Root Cause**: State not being cleared when new search/load starts.
+
+**Solution**: Already fixed in `SearchResultsGrid.tsx` (lines 33-37):
+```typescript
+// Clear previous results immediately when new search starts
+setSearchResults([]);
+setIsLoading(true);
+setTotalResults(0);
+```
+
+**Verify Fix**:
+```bash
+# Check the component clears state
+grep -A 5 "Clear previous results" movie_genie/frontend/src/components/SearchResultsGrid.tsx
+```
+
+---
+
+### Environment Variables Not Working (Vite)
+
+**Symptom**: `VITE_USE_REAL_SEARCH=true` but still using mock data.
+
+**Root Cause**: Using `process.env` instead of `import.meta.env` in Vite.
+
+**Wrong**:
+```typescript
+const useRealData = process.env.VITE_USE_REAL_SEARCH === 'true';  // ❌ DOESN'T WORK
+```
+
+**Correct**:
+```typescript
+const useRealData = import.meta.env.VITE_USE_REAL_SEARCH !== 'false';  // ✅ WORKS
+```
+
+**Why `!== 'false'` instead of `=== 'true'`**:
+- Vite env vars are `undefined` by default
+- `undefined !== 'false'` = true (default enabled)
+- `undefined === 'true'` = false (would disable by default)
+
+**Verify**:
+```bash
+# Check movieDataService.ts uses correct pattern
+grep "import.meta.env" movie_genie/frontend/src/services/movieDataService.ts
+```
+
+---
+
 ## Frontend Issues
 
 #### Build failures

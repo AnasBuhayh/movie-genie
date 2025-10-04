@@ -14,45 +14,34 @@ server_process = None
 
 def signal_handler(signum, frame):
     """Handle termination signals and cleanup processes"""
-    print(f"\n🛑 Received signal {signum}, shutting down server...")
+    print(f"\n\n👋 Shutting down Movie Genie backend...")
 
     if server_process:
-        print("📡 Terminating Flask server...")
+        # Send SIGTERM to subprocess
         server_process.terminate()
 
-        # Wait for graceful shutdown
+        # Wait briefly for graceful shutdown
         try:
-            server_process.wait(timeout=5)
-            print("✅ Server stopped gracefully")
+            server_process.wait(timeout=2)
         except subprocess.TimeoutExpired:
-            print("⚠️  Server didn't stop gracefully, forcing shutdown...")
+            # Force kill if it doesn't stop
             server_process.kill()
             server_process.wait()
-            print("✅ Server force stopped")
 
-    # Kill any remaining Flask processes on the port
+    # Quick cleanup of any remaining processes on the port
     port = os.environ.get('FLASK_PORT', '5001')
     try:
-        subprocess.run(['pkill', '-f', f'flask.*{port}'], check=False, capture_output=True)
-        subprocess.run(['lsof', '-ti', f':{port}'], check=False, capture_output=True,
-                      text=True).stdout.strip()
-
-        # Kill processes using the port
         result = subprocess.run(['lsof', '-ti', f':{port}'],
                               capture_output=True, text=True, check=False)
         if result.stdout.strip():
             pids = result.stdout.strip().split('\n')
             for pid in pids:
                 if pid:
-                    try:
-                        subprocess.run(['kill', '-9', pid], check=False)
-                        print(f"🔪 Killed process {pid} using port {port}")
-                    except:
-                        pass
+                    subprocess.run(['kill', '-9', pid], check=False, capture_output=True)
     except:
         pass
 
-    print("👋 Movie Genie server shutdown complete")
+    print("✅ Shutdown complete\n")
     sys.exit(0)
 
 def main():

@@ -1,5 +1,7 @@
 # Model and encoding
-model_name: "google/embeddinggemma-300M"
+# NOTE: Using sentence-transformers model for better semantic search quality
+# EmbeddingGemma-300M was giving poor results (Zoolander ranked higher than Batman for "batman" query)
+model_name: "sentence-transformers/all-MiniLM-L6-v2"
 normalize_vectors: true
 cache_size: 1000
 

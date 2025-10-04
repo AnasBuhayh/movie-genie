@@ -759,3 +759,370 @@ The current implementation provides a solid foundation for ML integration:
 - **Performance**: Optimized build process and asset delivery
 
 This comprehensive integration ensures that Movie Genie operates as a cohesive, production-ready application with seamless frontend-backend-ML integration.
+
+## Endpoint Connection Setup
+
+### Overview
+
+The Movie Genie application connects the React frontend with the Flask backend through a well-defined API contract. This section documents the endpoint configuration and connection setup.
+
+### API Endpoint Mapping
+
+All backend API responses follow a standardized wrapper format:
+
+```json
+{
+  "success": true,
+  "data": { /* actual response data */ },
+  "message": "Success message",
+  "error_code": "optional error code",
+  "details": "optional additional details"
+}
+```
+
+The frontend API client automatically unwraps the `data` field for seamless integration.
+
+#### Connected Endpoints
+
+| Feature | Frontend Method | Backend Endpoint | HTTP Method | Status |
+|---------|----------------|------------------|-------------|--------|
+| Popular Movies | `MovieDataService.getPopularMovies()` | `/api/movies/popular` | GET | ✅ |
+| Semantic Search | `MovieDataService.searchMovies()` | `/api/search/semantic` | GET | ✅ |
+| Movie Details | `MovieDataService.getMovieDetails()` | `/api/movies/{id}` | GET | ✅ |
+| Personalized Recommendations | `MovieDataService.getPersonalizedRecommendations()` | `/api/recommendations/personalized` | POST | ✅ |
+| Submit Feedback | `MovieGenieAPI.submitFeedback()` | `/api/feedback` | POST | ✅ |
+| Submit Rating | `MovieGenieAPI.submitRating()` | `/api/feedback/rating` | POST | ✅ |
+| User Information | `MovieGenieAPI.getUserInfo()` | `/api/users/info` | GET | ✅ |
+| User Profile | `MovieGenieAPI.getUserProfile()` | `/api/users/{id}/profile` | GET | ✅ |
+
+### Frontend API Configuration
+
+#### API Client (`movie_genie/frontend/src/lib/api.ts`)
+
+The frontend API client handles all communication with the backend:
+
+```typescript
+// API Configuration
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+export const API_ENDPOINTS = {
+  // Search endpoints
+  SEARCH: `${API_BASE_URL}/search`,
+  SEMANTIC_SEARCH: `${API_BASE_URL}/search/semantic`,
+
+  // Movie endpoints
+  MOVIE_DETAILS: (id: string) => `${API_BASE_URL}/movies/${id}`,
+  POPULAR_MOVIES: `${API_BASE_URL}/movies/popular`,
+
+  // Recommendation endpoints
+  RECOMMENDATIONS: `${API_BASE_URL}/recommendations`,
+  PERSONALIZED_RECOMMENDATIONS: `${API_BASE_URL}/recommendations/personalized`,
+
+  // User feedback endpoints
+  FEEDBACK: `${API_BASE_URL}/feedback`,
+  RATING: `${API_BASE_URL}/feedback/rating`,
+
+  // User endpoints
+  USER_INFO: `${API_BASE_URL}/users/info`,
+  USER_PROFILE: (userId: number) => `${API_BASE_URL}/users/${userId}/profile`,
+} as const;
+```
+
+#### Response Unwrapping
+
+The API client automatically unwraps backend responses:
+
+```typescript
+interface APIResponse<T> {
+  success: boolean;
+  data: T;
+  message: string;
+  error_code?: string;
+  details?: any;
+}
+
+class MovieGenieAPI {
+  private static async fetchAPI<T>(url: string, options?: RequestInit): Promise<T> {
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+      ...options,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `API Error: ${response.status}`);
+    }
+
+    const jsonResponse: APIResponse<T> = await response.json();
+
+    // Unwrap the backend response format
+    if (jsonResponse.success && jsonResponse.data !== undefined) {
+      return jsonResponse.data;
+    }
+
+    return jsonResponse as unknown as T;
+  }
+}
+```
+
+### Data Source Configuration
+
+The frontend uses environment variables to toggle between real API data and mock data for development:
+
+#### Environment Configuration (`movie_genie/frontend/.env.development`)
+
+```bash
+# API Configuration
+VITE_API_URL=http://127.0.0.1:5001/api
+VITE_APP_TITLE=Movie Genie - Development
+VITE_ENABLE_MOCK_API=false
+
+# Data Source Configuration (true = use real API, false = use mock data)
+VITE_USE_REAL_POPULAR=true
+VITE_USE_REAL_SEARCH=true
+VITE_USE_REAL_RECOMMENDATIONS=true
+VITE_USE_REAL_MOVIE_DETAILS=true
+
+# Development-specific settings
+VITE_LOG_LEVEL=debug
+VITE_ENABLE_DEVTOOLS=true
+```
+
+#### Movie Data Service with Fallback
+
+The `MovieDataService` provides automatic fallback to mock data if the API is unavailable:
+
+```typescript
+export class MovieDataService {
+  // Get popular movies (with fallback)
+  static async getPopularMovies(limit: number = 20): Promise<MovieData[]> {
+    if (DATA_SOURCE_CONFIG.popular) {
+      try {
+        console.log('🔄 Attempting to fetch real popular movies...');
+        const response = await MovieGenieAPI.getPopularMovies(limit);
+        const movies = response.movies?.map(this.transformApiMovie) || [];
+        console.log('✅ Got real popular movies:', movies.length);
+        return movies;
+      } catch (error) {
+        console.warn('⚠️ Real popular movies failed, falling back to mock data:', error);
+      }
+    }
+
+    console.log('📝 Using mock popular movies');
+    return Array.from({length: limit}, (_, i) =>
+      this.createMockMovie(i + 1, `Popular Movie ${i + 1}`, 'Popular')
+    );
+  }
+
+  // Transform API response to frontend format
+  private static transformApiMovie(apiMovie: any): MovieData {
+    return {
+      id: apiMovie.movieId?.toString() || apiMovie.id?.toString(),
+      title: apiMovie.title,
+      poster_url: apiMovie.poster_path
+        ? `https://image.tmdb.org/t/p/w500${apiMovie.poster_path}`
+        : null,
+      genres: apiMovie.genres || [],
+      rating: apiMovie.vote_average,
+      overview: apiMovie.overview,
+      release_date: apiMovie.release_date,
+      runtime: apiMovie.runtime,
+    };
+  }
+}
+```
+
+### Backend Server Configuration
+
+#### Flask Backend Environment (`movie_genie/backend/.env`)
+
+```bash
+# Flask settings
+FLASK_ENV=development
+FLASK_HOST=127.0.0.1
+FLASK_PORT=5001
+
+# Secret key for sessions
+SECRET_KEY=dev-secret-key-change-in-production
+
+# Database URL
+DATABASE_URL=sqlite:///movie_genie.db
+
+# Logging
+LOG_LEVEL=INFO
+
+# CORS origins (for frontend development)
+CORS_ORIGINS=http://localhost:8080,http://localhost:3000,http://localhost:5000
+```
+
+#### CORS Configuration
+
+The backend is configured to allow cross-origin requests from the frontend:
+
+```python
+# Development config allows all origins
+class DevelopmentConfig(Config):
+    DEBUG = True
+    CORS_ORIGINS = ["*"]
+
+# Production config specifies allowed origins
+class ProductionConfig(Config):
+    DEBUG = False
+    CORS_ORIGINS = ["http://localhost:8080", "http://localhost:3000"]
+```
+
+### Starting the Application
+
+#### Step 1: Start Backend Server
+
+```bash
+cd movie_genie/backend
+python app.py
+```
+
+Expected output:
+```
+🎬 Movie Genie Backend Starting...
+
+🌐 Server: http://127.0.0.1:5001
+🔧 Environment: development
+🎯 API Base URL: http://127.0.0.1:5001/api
+📱 Frontend: http://127.0.0.1:5001
+
+📋 Available endpoints:
+   • GET  /api/health              - Health check
+   • GET  /api/search/semantic     - Semantic movie search
+   • GET  /api/movies/<id>         - Movie details
+   • GET  /api/movies/popular      - Popular movies
+   • POST /api/recommendations/personalized - Personalized recommendations
+   • POST /api/feedback            - Submit user feedback
+
+🚀 Starting Flask server...
+```
+
+#### Step 2: Start Frontend Development Server
+
+In a new terminal:
+
+```bash
+cd movie_genie/frontend
+npm run dev
+```
+
+The frontend will be available at `http://localhost:8080`
+
+### Testing the Connection
+
+#### Browser Console Verification
+
+When the application loads, you should see these logs in the browser console:
+
+```
+🔄 Attempting to fetch real popular movies...
+✅ Got real popular movies: 20
+🔄 Attempting real semantic search for: action movies
+✅ Got real search results: 15
+```
+
+#### API Health Check
+
+Test the backend API directly:
+
+```bash
+# Health check
+curl http://127.0.0.1:5001/api/health
+
+# Popular movies
+curl http://127.0.0.1:5001/api/movies/popular?limit=5
+
+# Semantic search
+curl "http://127.0.0.1:5001/api/search/semantic?q=action+movies"
+
+# Movie details
+curl http://127.0.0.1:5001/api/movies/1
+```
+
+### Troubleshooting
+
+#### Backend Not Starting
+
+**Check Python dependencies:**
+```bash
+pip install flask flask-cors flask-sqlalchemy python-dotenv
+```
+
+**Verify port availability:**
+```bash
+lsof -i :5001
+```
+
+#### Frontend Shows Mock Data
+
+**Verify environment variables are loaded:**
+```bash
+cd movie_genie/frontend
+cat .env.development
+```
+
+**Restart frontend after changing environment variables:**
+```bash
+# Stop the dev server (Ctrl+C)
+npm run dev
+```
+
+#### CORS Errors
+
+**Check backend CORS configuration:**
+- Development mode should have `CORS_ORIGINS = ["*"]`
+- Verify frontend URL is in allowed origins list
+
+**Check browser network tab:**
+- Look for preflight OPTIONS requests
+- Verify `Access-Control-Allow-Origin` header is present
+
+#### API Returns 404
+
+**Verify backend is running:**
+```bash
+lsof -i :5001  # Should show Python process
+```
+
+**Check API base URL:**
+```bash
+echo $VITE_API_URL  # Should be http://127.0.0.1:5001/api
+```
+
+**Verify endpoint paths match backend routes**
+
+### Development Workflow
+
+#### Hot Reloading
+
+- **Frontend**: Vite provides instant hot module replacement
+- **Backend**: Flask debug mode auto-reloads on code changes
+
+#### Switching Between Real/Mock Data
+
+Edit `movie_genie/frontend/.env.development`:
+
+```bash
+# Use real API
+VITE_USE_REAL_SEARCH=true
+
+# Use mock data (for offline development)
+VITE_USE_REAL_SEARCH=false
+```
+
+Restart the frontend dev server to apply changes.
+
+#### Adding New Endpoints
+
+1. **Backend**: Add endpoint in `movie_genie/backend/app/api/*.py`
+2. **Frontend API**: Add method in `movie_genie/frontend/src/lib/api.ts`
+3. **Service Layer**: Use in `MovieDataService` with fallback support
+4. **Documentation**: Update this guide and API reference
+
+This connection setup ensures seamless integration between the frontend and backend while providing flexibility for development and graceful degradation in production.

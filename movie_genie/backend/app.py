@@ -8,6 +8,7 @@ Integrates with your existing ML infrastructure and database layer.
 
 import os
 import sys
+import signal
 from pathlib import Path
 
 # Add the project root to Python path for imports
@@ -16,8 +17,17 @@ sys.path.insert(0, str(project_root))
 
 from movie_genie.backend.app import create_app
 
+def signal_handler(sig, frame):
+    """Handle shutdown signals gracefully"""
+    print("\n\n👋 Movie Genie Backend shutting down gracefully...")
+    sys.exit(0)
+
 def main():
     """Main entry point"""
+
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)   # Handle Ctrl+C
+    signal.signal(signal.SIGTERM, signal_handler)  # Handle termination
 
     # Create Flask app
     app = create_app()
@@ -49,18 +59,18 @@ def main():
 
 💡 To build frontend: cd movie_genie/frontend && npm run build
 
-🚀 Starting Flask server...
+🚀 Starting Flask server... (Press Ctrl+C to stop)
     """)
 
     try:
+        # Use use_reloader=False to prevent double signal handling in debug mode
         app.run(
             host=host,
             port=port,
             debug=debug,
-            threaded=True
+            threaded=True,
+            use_reloader=False  # Prevents duplicate processes and cleaner shutdown
         )
-    except KeyboardInterrupt:
-        print("\n👋 Movie Genie Backend shutting down...")
     except Exception as e:
         print(f"❌ Error starting server: {e}")
         sys.exit(1)

@@ -6,35 +6,42 @@ import MovieDataService, { type MovieData } from "../services/movieDataService";
 
 interface SearchResultsGridProps {
   searchQuery: string;
+  userId?: string;
   onMovieClick: (movieId: string) => void;
   onBackToMain: () => void;
 }
 
 export const SearchResultsGrid: React.FC<SearchResultsGridProps> = ({
   searchQuery,
+  userId,
   onMovieClick,
   onBackToMain
 }) => {
   const [searchResults, setSearchResults] = useState<MovieData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [hasRealData, setHasRealData] = useState(false);
   const [totalResults, setTotalResults] = useState(0);
 
   useEffect(() => {
     const fetchSearchResults = async () => {
-      if (!searchQuery.trim()) return;
+      if (!searchQuery.trim()) {
+        setSearchResults([]);
+        setTotalResults(0);
+        return;
+      }
 
+      // Clear previous results immediately when new search starts
+      setSearchResults([]);
       setIsLoading(true);
+      setTotalResults(0);
+
       try {
-        const results = await MovieDataService.searchMovies(searchQuery, 20);
+        const results = await MovieDataService.searchMovies(searchQuery, 20, userId);
         setSearchResults(results.movies);
-        setHasRealData(results.hasRealData);
         setTotalResults(results.total);
       } catch (error) {
         console.error('Search failed:', error);
         // Fallback to empty results
         setSearchResults([]);
-        setHasRealData(false);
         setTotalResults(0);
       } finally {
         setIsLoading(false);
@@ -42,7 +49,7 @@ export const SearchResultsGrid: React.FC<SearchResultsGridProps> = ({
     };
 
     fetchSearchResults();
-  }, [searchQuery]);
+  }, [searchQuery, userId]);
 
   return (
     <div className="space-y-6">
@@ -60,14 +67,9 @@ export const SearchResultsGrid: React.FC<SearchResultsGridProps> = ({
           </Button>
           <div>
             <h2 className="text-2xl font-bold">Search Results</h2>
-            <div className="flex items-center space-x-3">
-              <p className="text-muted-foreground">
-                {isLoading ? 'Searching...' : `Found ${totalResults} movies for "${searchQuery}"`}
-              </p>
-              <span className={`text-xs px-2 py-1 rounded ${hasRealData ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                {hasRealData ? '🌐 Real Data' : '📝 Mock Data'}
-              </span>
-            </div>
+            <p className="text-muted-foreground">
+              {isLoading ? 'Searching...' : `Found ${totalResults} movies for "${searchQuery}"`}
+            </p>
           </div>
         </div>
       </div>
