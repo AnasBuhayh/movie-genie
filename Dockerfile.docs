@@ -1,0 +1,12 @@
+FROM squidfunk/mkdocs-material:latest
+
+# Install required MkDocs plugins
+RUN pip install --no-cache-dir \
+    mkdocs-git-revision-date-localized-plugin \
+    mkdocs-minify-plugin
+
+WORKDIR /docs
+
+EXPOSE 8000
+
+CMD ["serve", "--dev-addr=0.0.0.0:8000"]

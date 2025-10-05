@@ -1,90 +1,117 @@
+# Movie Genie DVC Pipeline
+# Focus: Data processing and ML training only
+# Services: Use ./scripts/app.sh instead
+
 stages:
+  # ==========================================
+  # DATA PIPELINE
+  # ==========================================
+  
   ingest:
-    cmd: python scripts/ingest_data.py
+    cmd: .venv/bin/python scripts/ingest_data.py --config configs/data.yaml
     deps:
-    - data/raw/${data.data_sources.movielens.dataset_size}/ratings.csv
+    - scripts/ingest_data.py
     - configs/data.yaml
-    - movie_genie/data/loaders.py
-    params:
-    - data.data_sources.movielens.dataset_size
     outs:
-    - data/interim/thumbs_ratings.parquet
+    - data/raw/ratings.csv
+    - data/raw/movies.csv
 
   sequential_processing:
-    cmd: python scripts/process_sequential_data.py
+    cmd: .venv/bin/python scripts/process_sequential_data.py --config configs/data.yaml
     deps:
-    - data/interim/thumbs_ratings.parquet
-    - movie_genie/data/loaders.py
+    - scripts/process_sequential_data.py
     - configs/data.yaml
-    params:
-    - data.data_sources.movielens.dataset_size
+    - data/raw/ratings.csv
+    - data/raw/movies.csv
     outs:
     - data/processed/sequences_with_metadata.parquet
-    - data/processed/user_windows.parquet
 
   content_features:
-    cmd: python scripts/extract_content_features.py
+    cmd: .venv/bin/python scripts/extract_content_features.py --config configs/data.yaml
     deps:
-    - data/raw/tmdb/TMDB_movie_dataset_v11.csv
-    - data/raw/${data.data_sources.movielens.dataset_size}/links.csv
+    - scripts/extract_content_features.py
     - configs/data.yaml
+    - data/raw/movies.csv
     params:
-    - data.data_sources.movielens.dataset_size
+    - configs/data.yaml:
+      - processing.embedding_model
     outs:
     - data/processed/content_features.parquet
+
+  # ==========================================
+  # MODEL TRAINING
+  # ==========================================
 
   two_tower_training:
-    cmd: python scripts/train_two_tower.py --config configs/two_tower.yaml
+    cmd: >
+      .venv/bin/python scripts/train_two_tower.py
+      --config configs/two_tower.yaml
+      --mlflow-config configs/mlflow.yaml
     deps:
+    - scripts/train_two_tower.py
+    - movie_genie/retrieval/two_tower_model.py
+    - configs/two_tower.yaml
+    - configs/mlflow.yaml
     - data/processed/sequences_with_metadata.parquet
     - data/processed/content_features.parquet
-    - configs/two_tower.yaml
-    - movie_genie/retrieval/two_tower_model.py
-    - scripts/train_two_tower.py
     params:
-    - two_tower.training.learning_rate
-    - two_tower.training.num_epochs
-    - two_tower.model.embedding_dim
+    - configs/two_tower.yaml:
+      - model.embedding_dim
+      - model.user_hidden_dims
+      - model.item_hidden_dims
+      - training.batch_size
+      - training.num_epochs
     outs:
-    - models/two_tower/
-    - data/processed/movie_embeddings.parquet
-    metrics:
-    - metrics/two_tower_metrics.json
+    - models/two_tower:
+        cache: false
 
   bert4rec_training:
-    cmd: python scripts/train_bert4rec.py --config configs/bert4rec.yaml
+    cmd: >
+      .venv/bin/python scripts/train_bert4rec.py
+      --config configs/bert4rec.yaml
+      --mlflow-config configs/mlflow.yaml
     deps:
+    - scripts/train_bert4rec.py
+    - movie_genie/ranking/bert4rec_model.py
+    - configs/bert4rec.yaml
+    - configs/mlflow.yaml
     - data/processed/sequences_with_metadata.parquet
     - data/processed/content_features.parquet
-    - configs/bert4rec.yaml
-    - movie_genie/ranking/bert4rec_model.py
-    - scripts/train_bert4rec.py
     params:
-    - bert4rec.model.hidden_dim
-    - bert4rec.model.num_layers
-    - bert4rec.training.learning_rate
-    - bert4rec.training.mask_prob
+    - configs/bert4rec.yaml:
+      - model.hidden_dim
+      - model.num_heads
+      - model.num_layers
+      - training.batch_size
+      - training.num_epochs
     outs:
-    - models/bert4rec/
-    metrics:
-    - metrics/bert4rec_metrics.json
+    - models/bert4rec:
+        cache: false
+
+  # ==========================================
+  # EVALUATION
+  # ==========================================
 
   integrated_evaluation:
-    cmd: python scripts/evaluate_integrated_system.py
+    cmd: .venv/bin/python scripts/evaluate_integrated_system.py
     deps:
+    - scripts/evaluate_integrated_system.py
     - models/two_tower/
     - models/bert4rec/
     - data/processed/sequences_with_metadata.parquet
     - data/processed/content_features.parquet
-    - configs/evaluation.yaml
-    - scripts/evaluate_integrated_system.py
     outs:
     - results/integrated_system_evaluation.json
     - results/key_metrics.json
 
+  # ==========================================
+  # BUILD (Optional - for production)
+  # ==========================================
+
   frontend_build:
     cmd: >
-      cd movie_genie/frontend && npm run build &&
+      cd movie_genie/frontend &&
+      npm run build &&
       cp ../backend/dist/index.html ../backend/templates/ &&
       mkdir -p ../backend/static &&
       cp -r ../backend/dist/css ../backend/static/ &&
@@ -102,18 +129,17 @@ stages:
     - movie_genie/backend/static/
     always_changed: true
 
-  backend_server:
-    cmd: FLASK_PORT=5001 python scripts/start_server.py
-    deps:
-    - movie_genie/backend/app.py
-    - movie_genie/backend/config.py
-    - movie_genie/backend/app/
-    - movie_genie/backend/templates/index.html
-    - movie_genie/backend/static/
-    - models/two_tower/
-    - models/bert4rec/
-    - data/processed/content_features.parquet
-    - data/processed/sequences_with_metadata.parquet
-    - configs/semantic_search.yaml
-    always_changed: true
-
+# ==========================================
+# SERVICE MANAGEMENT
+# ==========================================
+# Services are managed separately from DVC pipeline:
+#
+# Production (Docker):
+#   docker-compose build
+#   docker-compose up -d
+#
+# Development (Local):
+#   python scripts/start_server.py           # Backend (port 5001)
+#   cd movie_genie/frontend && npm run dev   # Frontend (port 5173)
+#   mlflow ui --host 127.0.0.1 --port 5002   # MLflow UI
+#   mkdocs serve                             # Documentation (port 8000)

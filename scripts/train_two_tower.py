@@ -16,6 +16,12 @@ import logging
 from pathlib import Path
 import argparse
 from typing import Dict, Any
+import time
+from datetime import datetime
+
+# MLflow imports for experiment tracking
+import mlflow
+import mlflow.pytorch
 
 # Import our two-tower components
 import sys
@@ -37,26 +43,52 @@ def setup_logging() -> None:
 def load_config(config_path: str) -> Dict[str, Any]:
     """
     Load training configuration from YAML file.
-    
+
     The configuration file centralizes all hyperparameters and training settings,
     enabling systematic experimentation and ensuring that all training parameters
     are tracked by DVC for reproducibility.
-    
+
     Args:
         config_path: Path to the YAML configuration file
-        
+
     Returns:
         Dictionary containing all training configuration parameters
     """
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
-    
+
     logging.info(f"Loaded configuration from {config_path}")
     logging.info(f"Key parameters: embedding_dim={config['model']['embedding_dim']}, "
                 f"learning_rate={config['training']['learning_rate']}, "
                 f"epochs={config['training']['num_epochs']}")
-    
+
     return config
+
+def setup_mlflow(mlflow_config_path: str = 'configs/mlflow.yaml') -> Dict[str, Any]:
+    """
+    Configure MLflow for experiment tracking.
+
+    Args:
+        mlflow_config_path: Path to MLflow configuration file
+
+    Returns:
+        MLflow configuration dictionary
+    """
+    with open(mlflow_config_path, 'r') as f:
+        mlflow_config = yaml.safe_load(f)
+
+    # Set MLflow tracking URI
+    tracking_uri = mlflow_config['mlflow']['tracking_uri']
+    mlflow.set_tracking_uri(tracking_uri)
+
+    # Set experiment
+    experiment_name = mlflow_config['mlflow']['default_experiment_name']
+    mlflow.set_experiment(experiment_name)
+
+    logging.info(f"MLflow tracking URI: {tracking_uri}")
+    logging.info(f"MLflow experiment: {experiment_name}")
+
+    return mlflow_config
 
 def save_model_artifacts(model: TwoTowerModel, trainer: TwoTowerTrainer,
                         config: Dict[str, Any], output_dir: Path, data_loader: 'TwoTowerDataLoader') -> None:
@@ -225,8 +257,7 @@ def main():
     This function implements the entry point for DVC, handling argument parsing,
     configuration loading, data preparation, model training, evaluation, and
     artifact saving in a structured workflow that integrates with the DVC
-    dependency tracking system. It includes checkpoint loading to skip training
-    if a valid model already exists.
+    dependency tracking system and MLflow experiment tracking.
     """
     # Parse command line arguments for DVC integration
     parser = argparse.ArgumentParser(description='Train two-tower recommendation model')
@@ -234,112 +265,213 @@ def main():
                        help='Path to training configuration file')
     parser.add_argument('--force-retrain', action='store_true',
                        help='Force retraining even if existing model is found')
+    parser.add_argument('--mlflow-config', type=str, default='configs/mlflow.yaml',
+                       help='Path to MLflow configuration file')
     args = parser.parse_args()
-    
+
     # Setup logging and load configuration
     setup_logging()
     config = load_config(args.config)
-    
+    mlflow_config = setup_mlflow(args.mlflow_config)
+
     # Set random seeds for reproducibility
     torch.manual_seed(config['training']['random_seed'])
     np.random.seed(config['training']['random_seed'])
-    
+
     logging.info("Starting two-tower model training pipeline...")
-    
-    try:
-        # Load and prepare data using existing data loader
-        logging.info("Loading and preparing training data...")
-        data_loader = TwoTowerDataLoader(
-            sequences_path=config['data']['sequences_path'],
-            movies_path=config['data']['movies_path'],
-            negative_sampling_ratio=config['data']['negative_sampling_ratio'],
-            min_user_interactions=config['data']['min_user_interactions']
-        )
-        
-        # Check for existing trained model (unless forced to retrain)
-        model_output_dir = Path(config['outputs']['model_dir'])
-        model = None
 
-        if not args.force_retrain:
-            model = load_existing_model(model_output_dir, data_loader)
+    # Start MLflow run
+    with mlflow.start_run(run_name=f"two-tower-{datetime.now().strftime('%Y%m%d-%H%M%S')}") as run:
+        # Log run metadata
+        mlflow.set_tags({
+            "model_type": "retrieval",
+            "model_name": "two-tower",
+            "framework": "pytorch",
+            "dvc_pipeline": "true",
+        })
 
-        if model is None:
-            # Initialize new model with configuration parameters
-            logging.info("Initializing new two-tower model...")
-            model = TwoTowerModel(
-                num_users=data_loader.num_users,
-                num_movies=data_loader.num_movies,
-                content_feature_dim=data_loader.movie_features.shape[1],
-                embedding_dim=config['model']['embedding_dim'],
-                user_hidden_dims=config['model']['user_hidden_dims'],
-                item_hidden_dims=config['model']['item_hidden_dims'],
-                dropout_rate=config['model']['dropout_rate']
+        # Log all hyperparameters to MLflow
+        mlflow.log_params({
+            "embedding_dim": config['model']['embedding_dim'],
+            "user_hidden_dims": str(config['model']['user_hidden_dims']),
+            "item_hidden_dims": str(config['model']['item_hidden_dims']),
+            "dropout_rate": config['model']['dropout_rate'],
+            "learning_rate": config['training']['learning_rate'],
+            "num_epochs": config['training']['num_epochs'],
+            "batch_size": config['training']['batch_size'],
+            "margin": config['training']['margin'],
+            "validation_split": config['training']['validation_split'],
+            "negative_sampling_ratio": config['data']['negative_sampling_ratio'],
+            "min_user_interactions": config['data']['min_user_interactions'],
+            "random_seed": config['training']['random_seed'],
+        })
+
+        logging.info(f"MLflow run ID: {run.info.run_id}")
+        logging.info(f"MLflow run name: {run.info.run_name}")
+
+        try:
+            start_time = time.time()
+
+            # Load and prepare data using existing data loader
+            logging.info("Loading and preparing training data...")
+            data_loader = TwoTowerDataLoader(
+                sequences_path=config['data']['sequences_path'],
+                movies_path=config['data']['movies_path'],
+                negative_sampling_ratio=config['data']['negative_sampling_ratio'],
+                min_user_interactions=config['data']['min_user_interactions']
             )
 
-            logging.info(f"Model initialized with {sum(p.numel() for p in model.parameters()):,} parameters")
+            # Log dataset statistics to MLflow
+            mlflow.log_metrics({
+                "num_users": data_loader.num_users,
+                "num_movies": data_loader.num_movies,
+                "num_positive_examples": len(data_loader.positive_examples),
+                "num_negative_examples": len(data_loader.negative_examples),
+                "content_feature_dim": data_loader.movie_features.shape[1],
+            })
 
-            # Initialize trainer and execute training process
-            logging.info("Starting model training...")
-            trainer = TwoTowerTrainer(
-                model=model,
-                data_loader=data_loader,
-                learning_rate=config['training']['learning_rate'],
-                margin=config['training']['margin']
+            # Check for existing trained model (unless forced to retrain)
+            model_output_dir = Path(config['outputs']['model_dir'])
+            model = None
+
+            if not args.force_retrain:
+                model = load_existing_model(model_output_dir, data_loader)
+
+            if model is None:
+                # Initialize new model with configuration parameters
+                logging.info("Initializing new two-tower model...")
+                model = TwoTowerModel(
+                    num_users=data_loader.num_users,
+                    num_movies=data_loader.num_movies,
+                    content_feature_dim=data_loader.movie_features.shape[1],
+                    embedding_dim=config['model']['embedding_dim'],
+                    user_hidden_dims=config['model']['user_hidden_dims'],
+                    item_hidden_dims=config['model']['item_hidden_dims'],
+                    dropout_rate=config['model']['dropout_rate']
+                )
+
+                total_params = sum(p.numel() for p in model.parameters())
+                trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+                logging.info(f"Model initialized with {total_params:,} parameters")
+
+                # Log model architecture to MLflow
+                mlflow.log_metrics({
+                    "total_parameters": total_params,
+                    "trainable_parameters": trainable_params,
+                })
+
+                # Initialize trainer and execute training process
+                logging.info("Starting model training...")
+                trainer = TwoTowerTrainer(
+                    model=model,
+                    data_loader=data_loader,
+                    learning_rate=config['training']['learning_rate'],
+                    margin=config['training']['margin']
+                )
+
+                # Execute training with configuration parameters
+                training_history = trainer.train(
+                    num_epochs=config['training']['num_epochs'],
+                    batch_size=config['training']['batch_size'],
+                    validation_split=config['training']['validation_split']
+                )
+
+                # Log training metrics to MLflow
+                if training_history['loss']:
+                    for i, loss_dict in enumerate(training_history['loss']):
+                        mlflow.log_metrics({
+                            "train_loss": loss_dict['train'],
+                            "val_loss": loss_dict['val'],
+                        }, step=i)
+
+                    # Log final training metrics
+                    mlflow.log_metrics({
+                        "final_train_loss": training_history['loss'][-1]['train'],
+                        "final_val_loss": training_history['loss'][-1]['val'],
+                        "num_epochs_trained": len(training_history['epoch']),
+                    })
+
+                # Save model artifacts after training
+                save_model_artifacts(model, trainer, config, model_output_dir, data_loader)
+
+            else:
+                # Model loaded from checkpoint - skip training
+                logging.info("Using existing trained model - skipping training")
+                mlflow.set_tag("loaded_from_checkpoint", "true")
+
+                # Create a dummy trainer for evaluation
+                trainer = TwoTowerTrainer(
+                    model=model,
+                    data_loader=data_loader,
+                    learning_rate=config['training']['learning_rate'],
+                    margin=config['training']['margin']
+                )
+                # Create dummy history for consistency
+                training_history = {'epoch': [], 'loss': [], 'metrics': []}
+
+            # Calculate training time
+            training_time = time.time() - start_time
+            mlflow.log_metric("training_time_seconds", training_time)
+
+            # Evaluate trained model performance
+            logging.info("Evaluating trained model...")
+            evaluator = TwoTowerEvaluator(model, data_loader)
+
+            # Create test split for evaluation (in practice, you'd use held-out test data)
+            test_examples = {
+                'positive': data_loader.positive_examples[-1000:],  # Last 1000 positive examples
+                'negative': data_loader.negative_examples[-1000:]   # Last 1000 negative examples
+            }
+
+            evaluation_results = evaluator.evaluate_model_performance(
+                test_examples, k_values=config['evaluation']['k_values']
             )
 
-            # Execute training with configuration parameters
-            training_history = trainer.train(
-                num_epochs=config['training']['num_epochs'],
-                batch_size=config['training']['batch_size'],
-                validation_split=config['training']['validation_split']
+            # Log evaluation metrics to MLflow
+            mlflow.log_metrics(evaluation_results)
+
+            # Save evaluation metrics for DVC tracking (backward compatibility)
+            metrics_path = Path(config['outputs']['metrics_path'])
+            metrics_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Enhanced metrics with MLflow run info
+            enhanced_metrics = {
+                **evaluation_results,
+                "mlflow_run_id": run.info.run_id,
+                "mlflow_run_name": run.info.run_name,
+                "training_time_seconds": training_time,
+            }
+
+            with open(metrics_path, 'w') as f:
+                json.dump(enhanced_metrics, f, indent=2)
+            logging.info(f"Saved evaluation metrics to {metrics_path}")
+
+            # Log metrics file as artifact to MLflow
+            mlflow.log_artifact(str(metrics_path), artifact_path="metrics")
+
+            # Generate and save movie embeddings for serving (always regenerate for freshness)
+            embeddings_path = Path(config['outputs']['embeddings_path'])
+            generate_movie_embeddings(model, data_loader, embeddings_path)
+
+            # Log model to MLflow
+            logging.info("Logging model to MLflow...")
+            mlflow.pytorch.log_model(
+                pytorch_model=model,
+                artifact_path="model",
+                registered_model_name="two-tower-retrieval",
             )
 
-            # Save model artifacts after training
-            save_model_artifacts(model, trainer, config, model_output_dir, data_loader)
+            # Set model status tag
+            mlflow.set_tag("status", "inactive")  # Will be changed to "active" when deployed
 
-        else:
-            # Model loaded from checkpoint - skip training
-            logging.info("Using existing trained model - skipping training")
-            # Create a dummy trainer for evaluation
-            trainer = TwoTowerTrainer(
-                model=model,
-                data_loader=data_loader,
-                learning_rate=config['training']['learning_rate'],
-                margin=config['training']['margin']
-            )
-            # Create dummy history for consistency
-            training_history = {'epoch': [], 'loss': [], 'metrics': []}
-        
-        # Evaluate trained model performance
-        logging.info("Evaluating trained model...")
-        evaluator = TwoTowerEvaluator(model, data_loader)
-        
-        # Create test split for evaluation (in practice, you'd use held-out test data)
-        test_examples = {
-            'positive': data_loader.positive_examples[-1000:],  # Last 1000 positive examples
-            'negative': data_loader.negative_examples[-1000:]   # Last 1000 negative examples
-        }
-        
-        evaluation_results = evaluator.evaluate_model_performance(
-            test_examples, k_values=config['evaluation']['k_values']
-        )
-        
-        # Save evaluation metrics for DVC tracking
-        metrics_path = Path(config['outputs']['metrics_path'])
-        metrics_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(metrics_path, 'w') as f:
-            json.dump(evaluation_results, f, indent=2)
-        logging.info(f"Saved evaluation metrics to {metrics_path}")
-        
-        # Generate and save movie embeddings for serving (always regenerate for freshness)
-        embeddings_path = Path(config['outputs']['embeddings_path'])
-        generate_movie_embeddings(model, data_loader, embeddings_path)
-        
-        logging.info("Two-tower training pipeline completed successfully!")
-        
-    except Exception as e:
-        logging.error(f"Training pipeline failed: {e}")
-        raise
+            logging.info("Two-tower training pipeline completed successfully!")
+            logging.info(f"MLflow run: {run.info.run_id}")
+
+        except Exception as e:
+            logging.error(f"Training pipeline failed: {e}")
+            mlflow.log_param("error", str(e))
+            mlflow.set_tag("status", "failed")
+            raise
 
 if __name__ == "__main__":
     main()

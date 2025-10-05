@@ -1,34 +1,34 @@
-# 📁 Project Structure
+# Project Structure
 
 Complete guide to Movie Genie's file organization, directory structure, and code architecture.
 
-## 🎯 Project Overview
+## Project Overview
 
 Movie Genie follows a modular, scalable structure that separates concerns while maintaining clear relationships between components.
 
 ```
 movie-genie/
-├── 📊 Data & Models
-├── 🏗️ Application Code
-├── ⚙️ Configuration
-├── 📚 Documentation
-├── 🧪 Tests
-└── 🚀 Deployment
+├── Data & Models
+├── Application Code
+├── Configuration
+├── Documentation
+├── Tests
+└── Deployment
 ```
 
 ---
 
-## 📂 Complete Directory Structure
+## Complete Directory Structure
 
 ```
 movie-genie/
-├── configs/                          # ⚙️ Configuration files
+├── configs/                          # Configuration files
 │   ├── bert4rec_config.yaml          # BERT4Rec model configuration
 │   ├── two_tower_config.yaml         # Two-Tower model configuration
 │   ├── semantic_search.yaml          # Semantic search configuration
 │   └── evaluation_config.yaml        # Model evaluation configuration
 │
-├── data/                             # 📊 Data storage
+├── data/                             # Data storage
 │   ├── raw/                          # Raw input data
 │   │   └── ml-100k/                  # MovieLens 100K dataset
 │   │       ├── u.data                # User ratings
@@ -42,7 +42,7 @@ movie-genie/
 │       ├── content_features.parquet  # Movie content features
 │       └── sequences_with_metadata.parquet # User sequences
 │
-├── docs/                             # 📚 Documentation
+├── docs/                             # Documentation
 │   ├── README.md                     # Main documentation hub
 │   ├── getting-started/              # Getting started guides
 │   │   ├── README.md                 # Learning path overview
@@ -67,6 +67,8 @@ movie-genie/
 │   │   ├── ml-integration.md         # ML to frontend guide
 │   │   ├── api-reference.md          # Complete API docs
 │   │   └── frontend-components.md    # React components
+│   ├── how-to-guides/                # How-to guides
+│   │   └── docker-deployment.md      # Docker setup guide
 │   ├── deployment/                   # Deployment guides
 │   ├── configuration/                # Configuration docs
 │   ├── troubleshooting/              # Problem solving
@@ -77,12 +79,12 @@ movie-genie/
 │       ├── coding-standards.md       # Best practices
 │       └── changelog.md              # Project evolution
 │
-├── metrics/                          # 📈 Model performance metrics
+├── metrics/                          # Model performance metrics
 │   ├── bert4rec_metrics.json         # BERT4Rec evaluation results
 │   ├── two_tower_metrics.json        # Two-Tower evaluation results
 │   └── comparison_report.json        # Model comparison
 │
-├── models/                           # 🧠 Trained ML models
+├── models/                           # Trained ML models
 │   ├── bert4rec/                     # BERT4Rec model artifacts
 │   │   ├── bert4rec_model.pth        # Trained model weights
 │   │   ├── config.json               # Model configuration
@@ -98,10 +100,10 @@ movie-genie/
 │       ├── movie_embeddings.npy      # Movie text embeddings
 │       └── index.faiss               # Fast similarity search index
 │
-├── movie_genie/                      # 🏗️ Main application code
+├── movie_genie/                      # Main application code
 │   ├── __init__.py                   # Package initialization
 │   │
-│   ├── backend/                      # 🔧 Flask backend application
+│   ├── backend/                      # Flask backend application
 │   │   ├── __init__.py
 │   │   ├── app.py                    # Main Flask application
 │   │   ├── config.py                 # Backend configuration
@@ -129,7 +131,7 @@ movie-genie/
 │   │   │       ├── __init__.py
 │   │   │       ├── ml_loader.py      # ML model loading
 │   │   │       └── validators.py     # Input validation
-│   │   ├── templates/                # Static files served by Flask
+│   │   ├── dist/                     # Built frontend (in Flask templates for non-Docker)
 │   │   │   ├── index.html            # React app entry point
 │   │   │   ├── favicon.ico           # Site icon
 │   │   │   ├── robots.txt            # Search engine instructions
@@ -147,7 +149,7 @@ movie-genie/
 │   │       ├── app.log               # Main application log
 │   │       └── error.log             # Error-specific log
 │   │
-│   ├── frontend/                     # 🎨 React frontend application
+│   ├── frontend/                     # React frontend application
 │   │   ├── public/                   # Static assets
 │   │   │   ├── favicon.ico           # Site icon
 │   │   │   └── placeholder.svg       # Default movie poster
@@ -186,42 +188,42 @@ movie-genie/
 │   │   ├── .env.development          # Development environment vars
 │   │   └── .env.production           # Production environment vars
 │   │
-│   ├── data/                         # 🔄 Data processing modules
+│   ├── data/                         # Data processing modules
 │   │   ├── __init__.py
 │   │   ├── content_features.py       # Movie content feature extraction
 │   │   ├── sequential_processing.py  # User sequence generation
 │   │   └── data_validation.py        # Data quality checks
 │   │
-│   ├── ranking/                      # 🎯 Sequential recommendation models
+│   ├── ranking/                      # Sequential recommendation models
 │   │   ├── __init__.py
 │   │   ├── bert4rec_model.py         # BERT4Rec implementation
 │   │   ├── train_bert4rec.py         # BERT4Rec training script
 │   │   └── utils.py                  # Ranking utilities
 │   │
-│   ├── retrieval/                    # 🔍 Collaborative filtering models
+│   ├── retrieval/                    # Collaborative filtering models
 │   │   ├── __init__.py
 │   │   ├── two_tower_model.py        # Two-Tower implementation
 │   │   ├── train_two_tower.py        # Two-Tower training script
 │   │   └── embeddings.py             # Embedding utilities
 │   │
-│   ├── search/                       # 🔎 Semantic search modules
+│   ├── search/                       # Semantic search modules
 │   │   ├── __init__.py
 │   │   ├── semantic_engine.py        # Semantic search engine
 │   │   ├── setup_semantic_search.py  # Search setup script
 │   │   └── text_processing.py        # Text preprocessing
 │   │
-│   └── evaluation/                   # 📊 Model evaluation modules
+│   └── evaluation/                   # Model evaluation modules
 │       ├── __init__.py
 │       ├── integrated_evaluation.py  # Cross-model evaluation
 │       ├── metrics.py                # Evaluation metrics
 │       └── benchmark.py              # Performance benchmarking
 │
-├── results/                          # 📈 Evaluation and experiment results
+├── results/                          # Evaluation and experiment results
 │   ├── model_comparison.json         # Model performance comparison
 │   ├── ablation_studies/             # Feature importance studies
 │   └── experiment_logs/              # Detailed experiment logs
 │
-├── scripts/                          # 🛠️ Utility and setup scripts
+├── scripts/                          # Utility and setup scripts
 │   ├── setup_database.py             # Database initialization
 │   ├── process_movielens.py          # MovieLens data processing
 │   ├── imdb_featured_reviews.py      # IMDB review scraping
@@ -229,40 +231,47 @@ movie-genie/
 │   ├── test_full_pipeline.py         # End-to-end testing
 │   └── backup.sh                     # System backup script
 │
-├── tests/                            # 🧪 Project-wide tests
+├── tests/                            # Project-wide tests
 │   ├── __init__.py
 │   ├── test_ml_integration.py        # ML model integration tests
-│   ├── test_api_integration.py       # API integration tests
+│   ├── test_api_integration.py       # API endpoint tests
 │   ├── test_data_pipeline.py         # Data pipeline tests
 │   └── fixtures/                     # Test data fixtures
 │       ├── sample_movies.json        # Sample movie data
 │       └── sample_ratings.json       # Sample rating data
 │
-├── .dvc/                             # 🔄 DVC configuration and cache
+├── docker/                           # Docker configuration files
+│   └── nginx.conf                    # Nginx configuration for frontend
+│
+├── .dvc/                             # DVC configuration and cache
 │   ├── config                        # DVC configuration
 │   ├── cache/                        # DVC data cache
 │   └── .gitignore                    # DVC gitignore rules
 │
-├── .venv/                            # 🐍 Python virtual environment
+├── .venv/                            # Python virtual environment
 │   ├── bin/                          # Virtual environment binaries
 │   ├── lib/                          # Python packages
 │   └── pyvenv.cfg                    # Virtual environment config
 │
-├── dvc.yaml                          # 📋 DVC pipeline definition
-├── dvc.lock                          # 🔒 DVC pipeline lock file
-├── params.yaml                       # ⚙️ Pipeline parameters
+├── dvc.yaml                          # DVC pipeline definition
+├── dvc.lock                          # DVC pipeline lock file
+├── params.yaml                       # Pipeline parameters
 ├── .dvcignore                        # DVC ignore rules
 ├── .gitignore                        # Git ignore rules
 ├── pyproject.toml                    # Python project configuration
-├── requirements.txt                  # Python dependencies
+├── requirements.txt                  # Python dependencies (legacy)
 ├── README.md                         # Project overview
 ├── LICENSE                           # License information
-└── Dockerfile                        # Docker container definition
+├── Dockerfile.backend                # Backend Docker container
+├── Dockerfile.frontend               # Frontend Docker container
+├── Dockerfile.docs                   # Documentation Docker container
+├── docker-compose.yml                # Multi-container orchestration
+└── mkdocs.yml                        # Documentation configuration
 ```
 
 ---
 
-## 🏗️ Architecture Principles
+## Architecture Principles
 
 ### 1. Separation of Concerns
 Each directory has a clear, single responsibility:
@@ -292,7 +301,7 @@ data/raw/ → data/processed/ → models/ → movie_genie/backend/
 
 ---
 
-## 📊 Key File Purposes
+## Key File Purposes
 
 ### Configuration Files
 
@@ -332,12 +341,16 @@ requires = ["setuptools", "wheel"]
 
 [project]
 name = "movie-genie"
-version = "1.0.0"
+version = "0.1.0"
 dependencies = [
-    "flask>=2.3.0",
-    "torch>=2.0.0",
-    "transformers>=4.30.0"
+    "flask>=3.0.0",
+    "torch>=2.1.0",
+    "transformers>=4.35.0"
 ]
+
+[project.optional-dependencies]
+ml = ["scikit-learn>=1.3.0", "pandas>=2.0.0", "mlflow>=2.9.0"]
+llm = ["transformers>=4.35.0", "torch>=2.1.0", "sentence-transformers>=2.2.0"]
 ```
 
 ### Core Application Files
@@ -383,7 +396,7 @@ export default function App() {
 
 ---
 
-## 🔄 Data Flow Architecture
+## Data Flow Architecture
 
 ### 1. Data Processing Flow
 ```
@@ -414,9 +427,19 @@ models/ ──→ movie_genie/backend/app.py ──→ API Endpoints
 Frontend ←─── HTTP/JSON ←─── Flask Application
 ```
 
+### 4. Docker Deployment Flow
+```
+Source Code ──→ Docker Build ──→ Images ──→ Containers
+                                    │
+                                    ├─→ Backend (Flask API)
+                                    ├─→ Frontend (Nginx + React)
+                                    ├─→ MLflow (Experiment Tracking)
+                                    └─→ Docs (MkDocs)
+```
+
 ---
 
-## 🎨 Frontend Structure Deep Dive
+## Frontend Structure Deep Dive
 
 ### Component Hierarchy
 ```
@@ -466,7 +489,7 @@ interface SearchResults {
 
 ---
 
-## 🔧 Backend Structure Deep Dive
+## Backend Structure Deep Dive
 
 ### API Layer
 ```
@@ -513,7 +536,7 @@ app/models/
 
 ---
 
-## 🧠 ML Module Structure
+## ML Module Structure
 
 ### Model Organization
 ```
@@ -547,27 +570,37 @@ class BaseRecommender:
 
 ---
 
-## 📦 Deployment Structure
+## Deployment Structure
 
 ### Docker Structure
 ```
-Dockerfile                 # Multi-stage Docker build
-├── Frontend Build Stage   # Build React application
-├── Python Dependencies    # Install Python packages
-└── Production Stage       # Final runtime image
+Docker Files:
+├── Dockerfile.backend     # Backend (Flask + Gunicorn)
+├── Dockerfile.frontend    # Frontend (React + Nginx)
+├── Dockerfile.docs        # Documentation (MkDocs)
+└── docker-compose.yml     # Multi-container orchestration
 ```
 
 ### Environment Configuration
 ```
-.env files:
+Environment files:
 ├── .env.development       # Development settings
 ├── .env.production        # Production settings
 └── .env.example           # Template for environment variables
 ```
 
+### Container Services
+```
+docker-compose.yml defines:
+├── backend (port 5001)    # Flask API with Gunicorn
+├── frontend (port 8080)   # React app with Nginx
+├── mlflow (port 5002)     # Experiment tracking UI
+└── docs (port 8000)       # MkDocs documentation
+```
+
 ---
 
-## 🧪 Testing Structure
+## Testing Structure
 
 ### Test Organization
 ```
@@ -592,7 +625,7 @@ movie_genie/frontend/src/
 
 ---
 
-## 📈 Metrics and Monitoring
+## Metrics and Monitoring
 
 ### Results Structure
 ```
@@ -613,7 +646,7 @@ metrics/
 
 ---
 
-## 🎯 Development Workflow
+## Development Workflow
 
 ### Adding New Features
 
@@ -658,4 +691,4 @@ configs/new_model_config.yaml
 
 ---
 
-*This project structure balances organization with simplicity, making it easy to navigate while maintaining clear separation of concerns. Each directory and file has a specific purpose and follows established conventions.* 📁
+This project structure balances organization with simplicity, making it easy to navigate while maintaining clear separation of concerns. Each directory and file has a specific purpose and follows established conventions.

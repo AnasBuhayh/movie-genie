@@ -1,4 +1,4 @@
-# 🎬 Movie Genie Documentation
+# Movie Genie Documentation
 
 Welcome to the comprehensive documentation for **Movie Genie** - an AI-powered movie recommendation system that demonstrates modern ML engineering and full-stack development best practices.
 
@@ -6,16 +6,16 @@ Welcome to the comprehensive documentation for **Movie Genie** - an AI-powered m
 
 **Movie Genie** is a complete movie recommendation system that showcases:
 
-- **🧠 Advanced ML Models**: BERT4Rec, Two-Tower, and Semantic Search
-- **🌐 Full-Stack Integration**: React frontend + Flask backend
-- **🔄 MLOps Pipeline**: DVC-managed data and model workflows
-- **📊 Production Ready**: Docker deployment and monitoring
+- **Advanced ML Models**: BERT4Rec, Two-Tower, and Semantic Search
+- **Full-Stack Integration**: React frontend + Flask backend
+- **MLOps Pipeline**: DVC-managed data and model workflows
+- **Production Ready**: Docker deployment and monitoring
 
 This project serves as both a **functional recommendation system** and a **comprehensive learning reference** for building modern ML applications.
 
 ---
 
-## 🚀 Quick Navigation
+## Quick Navigation
 
 <div class="grid cards" markdown>
 
@@ -58,6 +58,22 @@ This project serves as both a **functional recommendation system** and a **compr
     Deploy Movie Genie to development and production.
 
     [:octicons-arrow-right-24: Deploy](deployment/)
+
+-   :material-tools:{ .lg .middle } **How-To Guides**
+
+    ---
+
+    Step-by-step guides for implementing features and tasks.
+
+    [:octicons-arrow-right-24: Guides](how-to-guides/)
+
+-   :material-chart-line:{ .lg .middle } **MLflow**
+
+    ---
+
+    Experiment tracking and model metrics dashboard.
+
+    [:octicons-arrow-right-24: MLflow](mlflow/)
 
 -   :material-help-circle:{ .lg .middle } **Troubleshooting**
 
@@ -157,17 +173,28 @@ The documentation is organized into logical sections for progressive learning:
 ### [:material-rocket-launch: Getting Started](getting-started/)
 Essential guides to get you up and running quickly.
 
+### [:material-tools: How-To Guides](how-to-guides/)
+Step-by-step guides for common development tasks:
+- [Adding a New Model](how-to-guides/add-new-model.md)
+- [MLflow Integration](how-to-guides/mlflow-integration.md)
+- [Serving Recommendations](how-to-guides/serve-recommendations.md)
+- [Training Models](how-to-guides/train-models.md)
+- [DVC Pipeline Usage](how-to-guides/dvc-pipeline.md)
+
 ### [:material-brain: Machine Learning](machine-learning/)
 Comprehensive coverage of all ML models and techniques.
+
+### [:material-chart-line: MLflow](mlflow/)
+Experiment tracking and model management:
+- [MLflow Setup](mlflow/setup.md)
+- [Integration Summary](mlflow/integration-summary.md)
+- [Frontend Dashboard](mlflow/dashboard-implementation.md)
 
 ### [:material-pipe: Data Pipeline](data-pipeline/)
 Data processing, feature engineering, and DVC workflows.
 
 ### [:material-web: Backend & Frontend](backend-frontend/)
 Full-stack architecture and integration patterns.
-
-### [:material-cog: Configuration](configuration/)
-Environment setup and configuration management.
 
 ### [:material-bug: Troubleshooting](troubleshooting/)
 Common issues, debugging, and problem solving.

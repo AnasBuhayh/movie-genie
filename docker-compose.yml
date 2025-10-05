@@ -1,0 +1,161 @@
+# Movie Genie Docker Compose Configuration
+# Production-ready multi-container setup
+#
+# PREREQUISITES:
+#   1. Run 'dvc repro' first to generate required artifacts:
+#      - data/processed/*.parquet (processed data)
+#      - models/*.pt (trained models)
+#      - mlruns/ (MLflow experiments)
+#      - movie_genie/frontend/dist/ (built frontend)
+#
+#   2. Configure environment:
+#      cp .env.example .env
+#      # Edit .env and set SECRET_KEY for production
+#
+# USAGE:
+#   docker-compose build        # Build all containers
+#   docker-compose up -d        # Start all services
+#   docker-compose logs -f      # View logs
+#   docker-compose down         # Stop all services
+#
+# ACCESS:
+#   Frontend:       http://localhost:8080
+#   Backend API:    http://localhost:5001/api
+#   MLflow UI:      http://localhost:5002
+#   Documentation:  http://localhost:8000
+
+services:
+  # ==========================================
+  # Backend API
+  # ==========================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: moviegenie-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-5001}:5001"
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - FLASK_HOST=0.0.0.0
+      - FLASK_PORT=5001
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Mount data and models as volumes for persistence
+      - ./data:/app/data:ro
+      - ./models:/app/models:ro
+      - ./mlruns:/app/mlruns:ro
+      - ./configs:/app/configs:ro
+      - backend-logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - moviegenie-network
+    depends_on:
+      - mlflow
+    labels:
+      com.moviegenie.service: "backend"
+      com.moviegenie.description: "Movie Genie API Backend"
+
+  # ==========================================
+  # Frontend
+  # ==========================================
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:5001/api}
+    container_name: moviegenie-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://0.0.0.0:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - moviegenie-network
+    depends_on:
+      - backend
+    labels:
+      com.moviegenie.service: "frontend"
+      com.moviegenie.description: "Movie Genie Web UI"
+
+  # ==========================================
+  # MLflow Tracking Server
+  # ==========================================
+  mlflow:
+    image: python:3.11-slim
+    container_name: moviegenie-mlflow
+    restart: unless-stopped
+    ports:
+      - "${MLFLOW_PORT:-5002}:5002"
+    environment:
+      - MLFLOW_TRACKING_URI=file:///mlflow
+      - MLFLOW_BACKEND_STORE_URI=file:///mlflow
+      - MLFLOW_ARTIFACT_ROOT=/mlflow
+    volumes:
+      - ./mlruns:/mlflow:rw
+    command: >
+      sh -c "apt-get update && apt-get install -y curl &&
+             pip install --no-cache-dir mlflow &&
+             mlflow server --host 0.0.0.0 --port 5002 --backend-store-uri file:///mlflow --default-artifact-root /mlflow"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://0.0.0.0:5002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - moviegenie-network
+    labels:
+      com.moviegenie.service: "mlflow"
+      com.moviegenie.description: "MLflow Experiment Tracking"
+
+  # ==========================================
+  # Documentation (MkDocs)
+  # ==========================================
+  docs:
+    build:
+      context: .
+      dockerfile: Dockerfile.docs
+    container_name: moviegenie-docs
+    restart: unless-stopped
+    ports:
+      - "${DOCS_PORT:-8000}:8000"
+    volumes:
+      - .:/docs:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "-O", "/dev/null", "http://0.0.0.0:8000/movie-genie/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - moviegenie-network
+    labels:
+      com.moviegenie.service: "docs"
+      com.moviegenie.description: "Project Documentation"
+
+# ==========================================
+# Networks
+# ==========================================
+networks:
+  moviegenie-network:
+    driver: bridge
+    name: moviegenie-network
+
+# ==========================================
+# Volumes
+# ==========================================
+volumes:
+  backend-logs:
+    name: moviegenie-backend-logs

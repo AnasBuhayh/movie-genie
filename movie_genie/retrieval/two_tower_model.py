@@ -1494,13 +1494,16 @@ class TwoTowerEvaluator:
         
         # Combine all metrics into a comprehensive results dictionary
         evaluation_results = {}
-        
-        # Add recall metrics
+
+        # Add recall metrics (use _at_ instead of @ for MLflow compatibility)
         for k, recall_value in recall_results.items():
-            evaluation_results[f'recall@{k}'] = recall_value
-        
-        # Add coverage metrics
-        evaluation_results.update(coverage_results)
+            evaluation_results[f'recall_at_{k}'] = recall_value
+
+        # Add coverage metrics (rename to use _at_ for MLflow)
+        for key, value in coverage_results.items():
+            # Replace @ with _at_ in coverage metric names
+            new_key = key.replace('@', '_at_')
+            evaluation_results[new_key] = value
         
         # Add summary statistics
         evaluation_results['num_test_users'] = len(test_users)

@@ -20,6 +20,12 @@ from pathlib import Path
 import argparse
 from typing import Dict, Any, List, Tuple
 import pickle
+import time
+from datetime import datetime
+
+# MLflow imports for experiment tracking
+import mlflow
+import mlflow.pytorch
 
 # Import BERT4Rec components we just built
 import sys
@@ -46,26 +52,52 @@ def setup_logging() -> None:
 def load_config(config_path: str) -> Dict[str, Any]:
     """
     Load BERT4Rec configuration parameters from YAML file.
-    
+
     The configuration centralizes all hyperparameters, training settings, and
     integration parameters for systematic experimentation and reproducible
     model development across different architectural variants.
-    
+
     Args:
         config_path: Path to BERT4Rec configuration file
-        
+
     Returns:
         Dictionary containing comprehensive training configuration
     """
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
-    
+
     logging.info(f"Loaded BERT4Rec configuration from {config_path}")
     logging.info(f"Key parameters: max_seq_len={config['model']['max_seq_len']}, "
                 f"hidden_dim={config['model']['hidden_dim']}, "
                 f"num_layers={config['model']['num_layers']}")
-    
+
     return config
+
+def setup_mlflow(mlflow_config_path: str = 'configs/mlflow.yaml') -> Dict[str, Any]:
+    """
+    Configure MLflow for experiment tracking.
+
+    Args:
+        mlflow_config_path: Path to MLflow configuration file
+
+    Returns:
+        MLflow configuration dictionary
+    """
+    with open(mlflow_config_path, 'r') as f:
+        mlflow_config = yaml.safe_load(f)
+
+    # Set MLflow tracking URI
+    tracking_uri = mlflow_config['mlflow']['tracking_uri']
+    mlflow.set_tracking_uri(tracking_uri)
+
+    # Set experiment
+    experiment_name = mlflow_config['mlflow']['default_experiment_name']
+    mlflow.set_experiment(experiment_name)
+
+    logging.info(f"MLflow tracking URI: {tracking_uri}")
+    logging.info(f"MLflow experiment: {experiment_name}")
+
+    return mlflow_config
 
 class BERT4RecTrainer:
     """
@@ -471,81 +503,178 @@ def save_bert4rec_artifacts(model: BERT4RecModel, trainer: BERT4RecTrainer,
 def main():
     """
     Main function orchestrating complete BERT4Rec training pipeline.
-    
+
     This function implements the DVC entry point for BERT4Rec training,
     handling configuration loading, data preparation, model initialization,
-    training execution, and artifact saving in a reproducible workflow.
+    training execution, and artifact saving in a reproducible workflow with
+    MLflow experiment tracking.
     """
     # Parse command line arguments for DVC integration
     parser = argparse.ArgumentParser(description='Train BERT4Rec sequential recommendation model')
     parser.add_argument('--config', type=str, default='configs/bert4rec.yaml',
                        help='Path to BERT4Rec configuration file')
+    parser.add_argument('--mlflow-config', type=str, default='configs/mlflow.yaml',
+                       help='Path to MLflow configuration file')
     args = parser.parse_args()
-    
+
     # Initialize logging and load configuration
     setup_logging()
     config = load_config(args.config)
-    
+    mlflow_config = setup_mlflow(args.mlflow_config)
+
     # Set random seeds for reproducible training
     torch.manual_seed(config['training']['random_seed'])
     np.random.seed(config['training']['random_seed'])
-    
+
     logging.info("Starting BERT4Rec training pipeline...")
-    
-    try:
-        # Load and prepare sequential training data
-        logging.info("Loading and processing sequential data...")
-        data_loader = BERT4RecDataLoader(
-            sequences_path=config['data']['sequences_path'],
-            movies_path=config['data']['movies_path'],
-            max_seq_len=config['model']['max_seq_len'],
-            min_seq_len=config['data']['min_seq_len']
-        )
-        
-        # Initialize BERT4Rec model with content feature integration
-        logging.info("Initializing BERT4Rec model...")
-        model = BERT4RecModel(
-            num_items=data_loader.num_movies,
-            content_feature_dim=data_loader.movie_features.shape[1],
-            max_seq_len=config['model']['max_seq_len'],
-            hidden_dim=config['model']['hidden_dim'],
-            num_layers=config['model']['num_layers'],
-            num_heads=config['model']['num_heads'],
-            dropout_rate=config['model']['dropout_rate']
-        )
-        
-        # Move model to GPU if available
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        model = model.to(device)
-        logging.info(f"Model moved to device: {device}")
-        
-        # Initialize trainer and execute training
-        trainer = BERT4RecTrainer(model, data_loader, config)
-        training_history = trainer.train()
-        
-        # Save model artifacts and training results
-        output_dir = Path(config['outputs']['model_dir'])
-        save_bert4rec_artifacts(model, trainer, data_loader, config, output_dir)
-        
-        # Save training metrics for DVC tracking
-        metrics = {
-            'final_train_loss': training_history['train_loss'][-1],
-            'final_val_loss': training_history['val_loss'][-1],
-            'num_epochs_trained': len(training_history['epoch']),
-            'total_parameters': sum(p.numel() for p in model.parameters())
-        }
-        
-        metrics_path = Path(config['outputs']['metrics_path'])
-        metrics_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(metrics_path, 'w') as f:
-            json.dump(metrics, f, indent=2)
-        logging.info(f"Saved training metrics to {metrics_path}")
-        
-        logging.info("BERT4Rec training pipeline completed successfully!")
-        
-    except Exception as e:
-        logging.error(f"BERT4Rec training pipeline failed: {e}")
-        raise
+
+    # Start MLflow run
+    with mlflow.start_run(run_name=f"bert4rec-{datetime.now().strftime('%Y%m%d-%H%M%S')}") as run:
+        # Log run metadata
+        mlflow.set_tags({
+            "model_type": "ranking",
+            "model_name": "bert4rec",
+            "framework": "pytorch",
+            "dvc_pipeline": "true",
+        })
+
+        # Log all hyperparameters to MLflow
+        mlflow.log_params({
+            "max_seq_len": config['model']['max_seq_len'],
+            "hidden_dim": config['model']['hidden_dim'],
+            "num_layers": config['model']['num_layers'],
+            "num_heads": config['model']['num_heads'],
+            "dropout_rate": config['model']['dropout_rate'],
+            "learning_rate": config['training']['learning_rate'],
+            "weight_decay": config['training']['weight_decay'],
+            "num_epochs": config['training']['num_epochs'],
+            "batch_size": config['training']['batch_size'],
+            "mask_prob": config['training']['mask_prob'],
+            "validation_split": config['training']['validation_split'],
+            "min_seq_len": config['data']['min_seq_len'],
+            "random_seed": config['training']['random_seed'],
+        })
+
+        logging.info(f"MLflow run ID: {run.info.run_id}")
+        logging.info(f"MLflow run name: {run.info.run_name}")
+
+        try:
+            start_time = time.time()
+
+            # Load and prepare sequential training data
+            logging.info("Loading and processing sequential data...")
+            data_loader = BERT4RecDataLoader(
+                sequences_path=config['data']['sequences_path'],
+                movies_path=config['data']['movies_path'],
+                max_seq_len=config['model']['max_seq_len'],
+                min_seq_len=config['data']['min_seq_len']
+            )
+
+            # Log dataset statistics to MLflow
+            mlflow.log_metrics({
+                "num_users": data_loader.num_users,
+                "num_movies": data_loader.num_movies,
+                "num_sequences": len(data_loader.user_sequences),
+                "content_feature_dim": data_loader.movie_features.shape[1],
+            })
+
+            # Initialize BERT4Rec model with content feature integration
+            logging.info("Initializing BERT4Rec model...")
+            model = BERT4RecModel(
+                num_items=data_loader.num_movies,
+                content_feature_dim=data_loader.movie_features.shape[1],
+                max_seq_len=config['model']['max_seq_len'],
+                hidden_dim=config['model']['hidden_dim'],
+                num_layers=config['model']['num_layers'],
+                num_heads=config['model']['num_heads'],
+                dropout_rate=config['model']['dropout_rate']
+            )
+
+            # Move model to GPU if available
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            model = model.to(device)
+            logging.info(f"Model moved to device: {device}")
+
+            total_params = sum(p.numel() for p in model.parameters())
+            trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+            # Log model architecture to MLflow
+            mlflow.log_metrics({
+                "total_parameters": total_params,
+                "trainable_parameters": trainable_params,
+            })
+            mlflow.log_param("device", str(device))
+
+            # Initialize trainer and execute training
+            trainer = BERT4RecTrainer(model, data_loader, config)
+            training_history = trainer.train()
+
+            # Log training metrics to MLflow
+            if training_history['train_loss']:
+                for i, (train_loss, val_loss) in enumerate(zip(
+                    training_history['train_loss'],
+                    training_history['val_loss']
+                )):
+                    mlflow.log_metrics({
+                        "train_loss": train_loss,
+                        "val_loss": val_loss,
+                        "learning_rate": training_history['learning_rate'][i],
+                    }, step=i)
+
+                # Log final training metrics
+                mlflow.log_metrics({
+                    "final_train_loss": training_history['train_loss'][-1],
+                    "final_val_loss": training_history['val_loss'][-1],
+                    "num_epochs_trained": len(training_history['epoch']),
+                })
+
+            # Calculate training time
+            training_time = time.time() - start_time
+            mlflow.log_metric("training_time_seconds", training_time)
+
+            # Save model artifacts and training results
+            output_dir = Path(config['outputs']['model_dir'])
+            save_bert4rec_artifacts(model, trainer, data_loader, config, output_dir)
+
+            # Save training metrics for DVC tracking (backward compatibility)
+            metrics = {
+                'final_train_loss': training_history['train_loss'][-1],
+                'final_val_loss': training_history['val_loss'][-1],
+                'num_epochs_trained': len(training_history['epoch']),
+                'total_parameters': total_params,
+                'mlflow_run_id': run.info.run_id,
+                'mlflow_run_name': run.info.run_name,
+                'training_time_seconds': training_time,
+            }
+
+            metrics_path = Path(config['outputs']['metrics_path'])
+            metrics_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(metrics_path, 'w') as f:
+                json.dump(metrics, f, indent=2)
+            logging.info(f"Saved training metrics to {metrics_path}")
+
+            # Log metrics file as artifact to MLflow
+            mlflow.log_artifact(str(metrics_path), artifact_path="metrics")
+
+            # Log model to MLflow
+            logging.info("Logging model to MLflow...")
+            mlflow.pytorch.log_model(
+                pytorch_model=model,
+                artifact_path="model",
+                registered_model_name="bert4rec-ranking",
+            )
+
+            # Set model status tag
+            mlflow.set_tag("status", "inactive")  # Will be changed to "active" when deployed
+
+            logging.info("BERT4Rec training pipeline completed successfully!")
+            logging.info(f"MLflow run: {run.info.run_id}")
+
+        except Exception as e:
+            logging.error(f"BERT4Rec training pipeline failed: {e}")
+            mlflow.log_param("error", str(e))
+            mlflow.set_tag("status", "failed")
+            raise
 
 if __name__ == "__main__":
     main()

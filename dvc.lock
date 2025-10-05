@@ -1,81 +1,82 @@
 schema: '2.0'
 stages:
   ingest:
-    cmd: python scripts/ingest_data.py
+    cmd: .venv/bin/python scripts/ingest_data.py --config configs/data.yaml
     deps:
     - path: configs/data.yaml
       hash: md5
       md5: 049f1d287ada87fb7b57774f313957ad
       size: 372
-    - path: data/raw/ml-latest-small/ratings.csv
+    - path: scripts/ingest_data.py
+      hash: md5
+      md5: fa6b92d8fee7eb471cc0c86281f578af
+      size: 1625
+    outs:
+    - path: data/raw/movies.csv
+      hash: md5
+      md5: ed94fab72b62442ef8150d9446e000d6
+      size: 494431
+    - path: data/raw/ratings.csv
       hash: md5
       md5: 325a6f09399d1c45671f187505e1a100
       size: 2483723
-    - path: movie_genie/data/loaders.py
-      hash: md5
-      md5: 462d156eac07d60bf5e4c0c193c08696
-      size: 8832
-    params:
-      params.yaml:
-        data.data_sources.movielens.dataset_size: ml-latest-small
-    outs:
-    - path: data/interim/thumbs_ratings.parquet
-      hash: md5
-      md5: 8b193ae6e321d3da6bb6089e0e1f5d13
-      size: 881763
   sequential_processing:
-    cmd: python scripts/process_sequential_data.py
+    cmd: .venv/bin/python scripts/process_sequential_data.py --config 
+      configs/data.yaml
     deps:
     - path: configs/data.yaml
       hash: md5
       md5: 049f1d287ada87fb7b57774f313957ad
       size: 372
-    - path: data/interim/thumbs_ratings.parquet
+    - path: data/raw/movies.csv
       hash: md5
-      md5: 8b193ae6e321d3da6bb6089e0e1f5d13
-      size: 881763
-    - path: movie_genie/data/loaders.py
+      md5: ed94fab72b62442ef8150d9446e000d6
+      size: 494431
+    - path: data/raw/ratings.csv
       hash: md5
-      md5: 462d156eac07d60bf5e4c0c193c08696
-      size: 8832
-    params:
-      params.yaml:
-        data.data_sources.movielens.dataset_size: ml-latest-small
+      md5: 325a6f09399d1c45671f187505e1a100
+      size: 2483723
+    - path: scripts/process_sequential_data.py
+      hash: md5
+      md5: 62707d633feec8725d795617cac80f0d
+      size: 1622
     outs:
     - path: data/processed/sequences_with_metadata.parquet
       hash: md5
       md5: ba5ff685cb977e41cdb6bbeb67a1cc63
       size: 1187276
-    - path: data/processed/user_windows.parquet
-      hash: md5
-      md5: 738d49147db324e32fe9f2218dac684d
-      size: 6646
   content_features:
-    cmd: python scripts/extract_content_features.py
+    cmd: .venv/bin/python scripts/extract_content_features.py --config 
+      configs/data.yaml
     deps:
     - path: configs/data.yaml
       hash: md5
       md5: 049f1d287ada87fb7b57774f313957ad
       size: 372
-    - path: data/raw/ml-latest-small/links.csv
+    - path: data/raw/movies.csv
       hash: md5
-      md5: 316913f95cdad64c745ca22f3630e230
-      size: 197979
-    - path: data/raw/tmdb/TMDB_movie_dataset_v11.csv
+      md5: ed94fab72b62442ef8150d9446e000d6
+      size: 494431
+    - path: scripts/extract_content_features.py
       hash: md5
-      md5: 418b0b0f5f9d6f2eaddd12595ea92a13
-      size: 578583430
+      md5: 9bf07ec8e71704864dface24cd5b5f71
+      size: 3484
     params:
-      params.yaml:
-        data.data_sources.movielens.dataset_size: ml-latest-small
+      configs/data.yaml:
+        processing.embedding_model: sentence-transformers/all-MiniLM-L6-v2
     outs:
     - path: data/processed/content_features.parquet
       hash: md5
       md5: 39509f00454583bb2e7393253e4090ed
       size: 30315719
   two_tower_training:
-    cmd: python scripts/train_two_tower.py --config configs/two_tower.yaml
+    cmd: ".venv/bin/python scripts/train_two_tower.py --config configs/two_tower.yaml
+      --mlflow-config configs/mlflow.yaml\n"
     deps:
+    - path: configs/mlflow.yaml
+      hash: md5
+      md5: 691288686091d1ef20bfb9c7b425d9b2
+      size: 2488
     - path: configs/two_tower.yaml
       hash: md5
       md5: e515f77b4ed6bb5b109bf1c867346ad7
@@ -90,38 +91,41 @@ stages:
       size: 1187276
     - path: movie_genie/retrieval/two_tower_model.py
       hash: md5
-      md5: 50d6a2b27d18f956a7fc5d6d6c17750b
-      size: 71116
+      md5: 61c51c4f50b4d078e856da0700222696
+      size: 71338
     - path: scripts/train_two_tower.py
       hash: md5
-      md5: 629b9bd5f2dca5b05b6c7eb4947cd608
-      size: 14552
+      md5: 9ad1b5d3a3eb04ea8904ea5409cb315b
+      size: 20054
     params:
-      params.yaml:
-        two_tower.model.embedding_dim: 128
-        two_tower.training.learning_rate: 0.001
-        two_tower.training.num_epochs: 50
+      configs/two_tower.yaml:
+        model.embedding_dim: 128
+        model.item_hidden_dims:
+        - 256
+        - 128
+        model.user_hidden_dims:
+        - 128
+        - 64
+        training.batch_size: 256
+        training.num_epochs: 50
     outs:
-    - path: data/processed/movie_embeddings.parquet
-      hash: md5
-      md5: fed43c45a693a7e0d9c58378d7387d12
-      size: 8032774
-    - path: metrics/two_tower_metrics.json
-      hash: md5
-      md5: 95b0228874c3cd513d8b8ca944ab395f
-      size: 246
-    - path: models/two_tower/
+    - path: models/two_tower
       hash: md5
       md5: 8a955de5b841b49cef47ec3ae3784d06.dir
       size: 3835964
       nfiles: 3
   bert4rec_training:
-    cmd: python scripts/train_bert4rec.py --config configs/bert4rec.yaml
+    cmd: ".venv/bin/python scripts/train_bert4rec.py --config configs/bert4rec.yaml
+      --mlflow-config configs/mlflow.yaml\n"
     deps:
     - path: configs/bert4rec.yaml
       hash: md5
       md5: 8b9a4896b7dacf833de86ecf29d4685c
       size: 2728
+    - path: configs/mlflow.yaml
+      hash: md5
+      md5: 691288686091d1ef20bfb9c7b425d9b2
+      size: 2488
     - path: data/processed/content_features.parquet
       hash: md5
       md5: 39509f00454583bb2e7393253e4090ed
@@ -136,31 +140,24 @@ stages:
       size: 30849
     - path: scripts/train_bert4rec.py
       hash: md5
-      md5: c649a8e6968714217099acb5b77cd9ff
-      size: 22955
+      md5: 42045f78073f8e818cb1cb0f5e39a0e5
+      size: 28148
     params:
-      params.yaml:
-        bert4rec.model.hidden_dim: 256
-        bert4rec.model.num_layers: 4
-        bert4rec.training.learning_rate: 0.0001
-        bert4rec.training.mask_prob: 0.15
+      configs/bert4rec.yaml:
+        model.hidden_dim: 256
+        model.num_heads: 8
+        model.num_layers: 4
+        training.batch_size: 64
+        training.num_epochs: 100
     outs:
-    - path: metrics/bert4rec_metrics.json
+    - path: models/bert4rec
       hash: md5
-      md5: b017e584317d610b7a0ecffc39274e64
-      size: 141
-    - path: models/bert4rec/
-      hash: md5
-      md5: 106288facde1a3c9565cb620421390a8.dir
-      size: 23722178
+      md5: cdeb234569748f3f82d7493ba5315fe1.dir
+      size: 23722738
       nfiles: 4
   integrated_evaluation:
-    cmd: python scripts/evaluate_integrated_system.py
+    cmd: .venv/bin/python scripts/evaluate_integrated_system.py
     deps:
-    - path: configs/evaluation.yaml
-      hash: md5
-      md5: 98d88ec3200e430803d14ba1e78fa3c7
-      size: 1372
     - path: data/processed/content_features.parquet
       hash: md5
       md5: 39509f00454583bb2e7393253e4090ed
@@ -171,8 +168,8 @@ stages:
       size: 1187276
     - path: models/bert4rec/
       hash: md5
-      md5: 106288facde1a3c9565cb620421390a8.dir
-      size: 23722178
+      md5: cdeb234569748f3f82d7493ba5315fe1.dir
+      size: 23722738
       nfiles: 4
     - path: models/two_tower/
       hash: md5
@@ -186,12 +183,12 @@ stages:
     outs:
     - path: results/integrated_system_evaluation.json
       hash: md5
-      md5: f75c352aeb3624aa949cfa54fe046738
-      size: 34173436
+      md5: 3936cea1cf08989806a2f787b95c79e8
+      size: 34173138
     - path: results/key_metrics.json
       hash: md5
-      md5: 6476d3e2203ace8e9f6bfefba01aed50
-      size: 1148
+      md5: 13c826b093c53665681b81baa0019b8c
+      size: 1151
   frontend_build:
     cmd: "cd movie_genie/frontend && npm run build && cp ../backend/dist/index.html
       ../backend/templates/ && mkdir -p ../backend/static && cp -r ../backend/dist/css
@@ -209,9 +206,9 @@ stages:
       size: 2758
     - path: movie_genie/frontend/src/
       hash: md5
-      md5: 8f687b095b9ee8035c27d59805fca98a.dir
-      size: 387625
-      nfiles: 74
+      md5: 7624d1c5a98e46b73c2599f6d868824e.dir
+      size: 425737
+      nfiles: 81
     - path: movie_genie/frontend/tailwind.config.ts
       hash: md5
       md5: 93be9dc915ab46eb00ba50615b111fd6
@@ -223,12 +220,12 @@ stages:
     outs:
     - path: movie_genie/backend/static/
       hash: md5
-      md5: 5cb6fd6f2d5d455c719603faebb230c9.dir
-      size: 410309
+      md5: b24dbf84ef57a49bff3c9a9cd744539c.dir
+      size: 856002
       nfiles: 2
     - path: movie_genie/backend/templates/index.html
       hash: md5
-      md5: 51b8cc8a9744e2cf6f2c61540fb4d4c3
+      md5: 77f597ca86ce274d3b2acd47d7879f3d
       size: 1347
   backend_server:
     cmd: FLASK_PORT=5001 python scripts/start_server.py

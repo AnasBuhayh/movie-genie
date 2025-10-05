@@ -15,6 +15,7 @@ from . import movies
 from . import recommendations
 from . import feedback
 from . import users
+from . import models_routes
 
 # Register sub-blueprints
 api_bp.register_blueprint(search.search_bp, url_prefix='/search')
@@ -22,6 +23,7 @@ api_bp.register_blueprint(movies.movies_bp, url_prefix='/movies')
 api_bp.register_blueprint(recommendations.recommendations_bp, url_prefix='/recommendations')
 api_bp.register_blueprint(feedback.feedback_bp, url_prefix='/feedback')
 api_bp.register_blueprint(users.users_bp, url_prefix='/users')
+api_bp.register_blueprint(models_routes.models_bp, url_prefix='/models')
 
 @api_bp.route('/health')
 def health_check():

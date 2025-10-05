@@ -1,3 +1,6 @@
+# Movie Genie Docker Build Context Ignore
+# Excludes unnecessary files from Docker build context for faster builds
+
 # Python
 __pycache__/
 *.py[cod]
@@ -20,7 +23,7 @@ ENV/
 .AppleDouble
 .LSOverride
 
-# Data (managed by DVC)
+# Data (large files, managed by volumes)
 data/raw/
 data/interim/
 data/processed/
@@ -28,7 +31,7 @@ data/processed/
 *.csv
 *.xlsx
 
-# Models (managed by DVC)
+# Models (large files, managed by volumes)
 models/
 
 # IDE
@@ -42,30 +45,30 @@ models/
 .ipynb_checkpoints/
 *.ipynb
 
-# Environment files
+# Environment files (will be provided via docker-compose)
 .env
 .env.local
 .env.*.local
 
-# DVC
+# DVC cache (large files, managed by volumes)
 .dvc/tmp/
 .dvc/cache/
 
-# Results that change frequently
+# Results
 results/
 metrics/*.json
 
-# Logs
+# Logs (will be managed by volumes)
 *.log
 logs/
 
-# MLflow (experiment tracking)
+# MLflow (managed by volumes)
 mlruns/
 mlartifacts/
 mlflow.db
 mlflow.db.lock
 
-# Frontend (React/Vite)
+# Frontend (will be built inside container)
 node_modules/
 movie_genie/frontend/node_modules/
 movie_genie/frontend/dist/
@@ -89,6 +92,36 @@ htmlcov/
 Thumbs.db
 *.bak
 *.tmp
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation build artifacts (docs container builds separately)
+site/
+docs/.cache/
+
+# Docker files (don't include in build context)
+docker-compose.yml
+docker-compose.*.yml
+Dockerfile*
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Development scripts
+scripts/app.sh
+scripts/docker.sh
+
+# DVC files (not needed in container)
+.dvc/
+dvc.yaml
+dvc.lock
+*.dvc
 
 # Project specific
 *.lock

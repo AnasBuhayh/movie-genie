@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { MovieSearch } from "@/components/MovieSearch";
 import { MovieDetails } from "@/components/MovieDetails";
 import { RecommendationCarousel } from "@/components/RecommendationCarousel";
@@ -8,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { User } from "lucide-react";
+import { User, BarChart3 } from "lucide-react";
 
 // API Hooks
 import {
@@ -142,9 +143,17 @@ const Index = () => {
                   <p className="text-sm text-muted-foreground">Your personalized movie recommendations</p>
                 </div>
               </div>
-              <Button variant="outline" size="sm" onClick={handleChangeUser}>
-                Change User
-              </Button>
+              <div className="flex gap-2">
+                <Link to="/metrics">
+                  <Button variant="outline" size="sm">
+                    <BarChart3 className="mr-2 h-4 w-4" />
+                    Model Metrics
+                  </Button>
+                </Link>
+                <Button variant="outline" size="sm" onClick={handleChangeUser}>
+                  Change User
+                </Button>
+              </div>
             </div>
           )}
 

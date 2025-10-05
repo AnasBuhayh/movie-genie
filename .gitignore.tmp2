@@ -1,0 +1,10 @@
+.hypothesis/
+
+# OS
+Thumbs.db
+*.bak
+*.tmp
+
+# Project specific
+*.lock
+!dvc.lock!package-lock.json

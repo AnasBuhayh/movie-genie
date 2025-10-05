@@ -1,0 +1,91 @@
+# MLflow Configuration for Movie Genie
+# This config defines MLflow tracking settings for experiment logging and model registry
+
+mlflow:
+  # Tracking URI - where MLflow stores experiment data
+  # For local development: use file-based tracking
+  # For production: use a database backend (postgresql://)
+  tracking_uri: "file:./mlruns"  # Creates mlruns/ directory in project root
+
+  # Artifact storage - where MLflow stores model files, plots, etc.
+  artifact_location: "./mlartifacts"
+
+  # Experiment naming
+  default_experiment_name: "movie-genie-models"
+
+  # Model registry settings
+  registry:
+    # Model staging levels
+    stages:
+      - "None"        # Default for new models
+      - "Staging"     # Testing phase
+      - "Production"  # Currently serving
+      - "Archived"    # Deprecated models
+
+  # Server settings (for running MLflow UI)
+  server:
+    host: "0.0.0.0"
+    port: 5000
+    backend_store_uri: "sqlite:///mlflow.db"  # SQLite for simplicity (use PostgreSQL for production)
+
+# Model tagging conventions
+# All models should be tagged with these standardized tags for easy filtering
+tags:
+  model_type:
+    - "retrieval"    # Two-Tower, ALS, etc.
+    - "ranking"      # BERT4Rec, rerankers
+    - "embedding"    # Text embedding models
+    - "hybrid"       # Combined models
+
+  framework:
+    - "pytorch"
+    - "tensorflow"
+    - "scikit-learn"
+
+  status:
+    - "active"       # Currently deployed
+    - "inactive"     # Trained but not deployed
+    - "experimental" # Research/testing phase
+
+# Metrics to track across all models
+# These will be logged during training and evaluation
+standard_metrics:
+  training:
+    - "train_loss"
+    - "val_loss"
+    - "learning_rate"
+    - "epoch"
+    - "training_time_seconds"
+
+  evaluation:
+    # Retrieval/Ranking metrics
+    - "recall@10"
+    - "recall@50"
+    - "recall@100"
+    - "precision@10"
+    - "precision@50"
+    - "precision@100"
+    - "ndcg@10"
+    - "ndcg@50"
+    - "ndcg@100"
+    - "coverage@10"
+    - "coverage@50"
+    - "coverage@100"
+
+    # Model info
+    - "num_test_users"
+    - "avg_recommendations_per_user"
+
+# Integration with DVC
+# MLflow and DVC work together:
+# - DVC tracks data files and pipeline dependencies
+# - MLflow tracks experiments, metrics, and model versions
+dvc_integration:
+  # DVC will trigger these MLflow-enabled training scripts
+  enabled: true
+
+  # Log DVC params to MLflow for full reproducibility
+  log_dvc_params: true
+
+  # Link MLflow runs to DVC pipeline runs
+  link_runs: true

@@ -1,4 +1,4 @@
-# Movie Genie 🎬
+# Movie Genie
 
 An AI-powered movie recommendation system with semantic search, demonstrating modern ML engineering and full-stack development best practices.
 
@@ -14,103 +14,147 @@ Movie Genie is a production-ready movie recommendation system that showcases:
 
 Perfect for learning modern ML engineering, full-stack development, and production MLOps practices.
 
-## ✨ Key Features
+## Key Features
 
-- 🔍 **Semantic Search**: Find movies using natural language ("action movies with robots")
-- 🎯 **Personalized Recommendations**: BERT4Rec sequential recommendations based on viewing history
-- 📊 **User Analytics**: Genre preferences, watched movies, historical interest
-- 🎨 **Modern UI**: React + TypeScript + Tailwind CSS with real movie posters
-- ⚡ **Fast**: Sub-second search with 384-dimensional embeddings
-- 🔄 **Reproducible**: Complete DVC pipeline for data processing and model training
+- **Semantic Search**: Find movies using natural language ("action movies with robots")
+- **Personalized Recommendations**: BERT4Rec sequential recommendations based on viewing history
+- **User Analytics**: Genre preferences, watched movies, historical interest
+- **Modern UI**: React + TypeScript + Tailwind CSS with real movie posters
+- **Fast**: Sub-second search with 384-dimensional embeddings
+- **Reproducible**: Complete DVC pipeline for data processing and model training
 
 ## Quick Start
 
-### Prerequisites
-- Python 3.9+
-- Node.js 16+
-- Git
-- 8GB+ RAM
-- 5GB+ disk space
+### Production Deployment (Docker)
 
-### Installation
+**Prerequisites**: Docker 20.10+ and Docker Compose 2.0+
 
 ```bash
-# Clone the repository
+# 1. Clone and setup
 git clone https://github.com/AnasBuhayh/movie-genie.git
 cd movie-genie
 
-# Create virtual environment
+# 2. Install dependencies and build artifacts with DVC
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies (includes ML models)
 pip install -e ".[llm]"
-```
 
-### Run the Application
+# IMPORTANT: Run dvc repro from within the activated virtual environment
+dvc repro  # ~15 minutes: downloads models, processes data, trains ML models
 
-```bash
-# Run the complete DVC pipeline
-# This will: process data → train models → build frontend → start server
-dvc repro
+# 3. Configure environment
+cp .env.example .env
+# Edit .env and set SECRET_KEY for production
+
+# 4. Build and deploy with Docker
+docker-compose build
+docker-compose up -d
 
 # Access the application
-# Open http://127.0.0.1:5001 in your browser
-# Select a user ID (1-610) to start exploring
+# Frontend: http://localhost:8080
+# Backend API: http://localhost:5001/api
+# MLflow UI: http://localhost:5002
+# Documentation: http://localhost:8000
 ```
 
-**First run takes ~15 minutes** (downloads models, processes data, trains ML models)
+**See [Docker Deployment Guide](docs/how-to-guides/docker-deployment.md) for production setup, monitoring, and troubleshooting.**
 
-## 🚀 Key Commands
+### Local Development
 
-### DVC Pipeline Commands
+**Prerequisites**: Python 3.9+, Node.js 16+, Git, 8GB+ RAM, 5GB+ disk space
+
 ```bash
-# Run complete pipeline (recommended)
+# 1. Clone and setup
+git clone https://github.com/AnasBuhayh/movie-genie.git
+cd movie-genie
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -e ".[llm]"
+
+# 2. Build artifacts with DVC (one time)
+dvc repro  # ~15 minutes first run
+
+# 3. Run development servers
+# Terminal 1: Frontend
+cd movie_genie/frontend
+npm install
+npm run dev  # http://localhost:5173
+
+# Terminal 2: Backend
+python scripts/start_server.py  # http://localhost:5001
+```
+
+**Development Benefits**: Hot reloading, faster iteration, no Docker overhead
+
+## Key Commands
+
+### Production (Docker)
+```bash
+# Build artifacts (required first)
+dvc repro
+
+# Start all services
+docker-compose build
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop all services
+docker-compose down
+
+# Check service health
+docker-compose ps
+curl http://localhost:5001/api/health
+```
+
+### Development (Local)
+```bash
+# Frontend (hot reload)
+cd movie_genie/frontend
+npm run dev
+
+# Backend
+python scripts/start_server.py
+
+# MLflow UI
+mlflow ui --host 127.0.0.1 --port 5002
+
+# Documentation
+mkdocs serve
+```
+
+### DVC Pipeline
+```bash
+# Build all artifacts (required before Docker deployment)
 dvc repro
 
 # Run specific stages
 dvc repro content_features    # Process data + generate embeddings
 dvc repro bert4rec_training   # Train BERT4Rec model
 dvc repro frontend_build      # Build React frontend
-dvc repro backend_server      # Start Flask server
 
 # Check pipeline status
 dvc status                    # See what's out of date
 dvc dag                       # View pipeline graph
 ```
 
-### Development Commands
-```bash
-# Backend development
-dvc repro backend_server      # Start Flask server on port 5001
-
-# Frontend development (separate terminal)
-cd movie_genie/frontend
-npm install
-npm run dev                   # Start dev server on port 5173
-
-# API testing
-curl http://127.0.0.1:5001/api/health
-curl "http://127.0.0.1:5001/api/search/semantic?q=action%20movies&k=5"
-```
-
-### Testing Commands
+### Testing & Debugging
 ```bash
 # API health check
 curl http://127.0.0.1:5001/api/health
 
 # Test semantic search
-curl "http://127.0.0.1:5001/api/search/semantic?q=batman&k=5"
+curl "http://127.0.0.1:5001/api/search/semantic?q=action%20movies&k=5"
 
 # Test user endpoints
 curl http://127.0.0.1:5001/api/users/1/watched
-curl http://127.0.0.1:5001/api/users/1/historical-interest
 
 # Search engine status
 curl http://127.0.0.1:5001/api/search/status
 ```
 
-## 🏗️ Architecture
+## Architecture
 
 ### System Overview
 ```
@@ -134,7 +178,7 @@ curl http://127.0.0.1:5001/api/search/status
 - **Pipeline**: DVC for reproducible workflows
 - **Embeddings**: sentence-transformers/all-MiniLM-L6-v2 (384-dim)
 
-## 🤖 Machine Learning Models
+## Machine Learning Models
 
 ### Model Comparison
 
@@ -156,7 +200,7 @@ curl http://127.0.0.1:5001/api/search/status
 **Model Selection Story**:
 We initially used EmbeddingGemma-300M but discovered it had poor semantic alignment (searching "batman" ranked "Zoolander" higher than Batman movies!). Switching to all-MiniLM-L6-v2 dramatically improved search quality.
 
-## 📊 Dataset
+## Dataset
 
 **Source**: MovieLens + TMDB metadata
 
@@ -174,7 +218,7 @@ We initially used EmbeddingGemma-300M but discovered it had poor semantic alignm
 - Sequential data preparation for BERT4Rec
 - Genre parsing and normalization
 
-## 🌐 API Endpoints
+## API Endpoints
 
 ### Search
 - `GET /search/semantic` - Natural language search with ML embeddings
@@ -196,25 +240,44 @@ We initially used EmbeddingGemma-300M but discovered it had poor semantic alignm
 
 **Full API documentation**: See `docs/backend-frontend/api-reference.md`
 
-## 📚 Documentation
+## Documentation
 
-Comprehensive documentation is available in the `docs/` directory:
+### View Documentation
 
-- **[Getting Started](docs/getting-started/)**: Installation, quick start, tutorials
-- **[API Reference](docs/backend-frontend/api-reference.md)**: Complete endpoint documentation
-- **[Machine Learning](docs/machine-learning/)**: Model architectures and training
-  - [Semantic Search](docs/machine-learning/semantic-search.md): Detailed search architecture
-  - [BERT4Rec](docs/machine-learning/bert4rec.md): Sequential recommendations
-- **[Configuration](docs/reference/configuration.md)**: All config parameters explained
-- **[Common Workflows](docs/getting-started/common-workflows.md)**: Step-by-step guides
-- **[Troubleshooting](docs/troubleshooting/)**: Common issues and solutions
+Start the documentation server for easy navigation:
 
-**Documentation Server** (optional):
 ```bash
-mkdocs serve    # http://127.0.0.1:8000
+# Serve interactive documentation
+./scripts/serve_docs.sh
+# Or: mkdocs serve
+
+# Access at: http://127.0.0.1:8000
 ```
 
-## ⚙️ Configuration
+**Documentation includes:**
+
+- **[How-To Guides](http://127.0.0.1:8000/how-to-guides/)**: Step-by-step implementation guides
+  - [Adding a New Model](http://127.0.0.1:8000/how-to-guides/add-new-model/)
+  - [MLflow Integration](http://127.0.0.1:8000/how-to-guides/mlflow-integration/)
+  - [Serving Recommendations](http://127.0.0.1:8000/how-to-guides/serve-recommendations/)
+  - [Training Models](http://127.0.0.1:8000/how-to-guides/train-models/)
+  - [DVC Pipeline Usage](http://127.0.0.1:8000/how-to-guides/dvc-pipeline/)
+  - [Docker Deployment](http://127.0.0.1:8000/how-to-guides/docker-deployment/)
+
+- **[MLflow Documentation](http://127.0.0.1:8000/mlflow/)**: Experiment tracking and metrics
+  - [Setup Guide](http://127.0.0.1:8000/mlflow/setup/)
+  - [Integration Summary](http://127.0.0.1:8000/mlflow/integration-summary/)
+  - [Frontend Dashboard](http://127.0.0.1:8000/mlflow/dashboard-implementation/)
+
+- **[Machine Learning](http://127.0.0.1:8000/machine-learning/)**: Model architectures
+  - [BERT4Rec](http://127.0.0.1:8000/machine-learning/bert4rec/)
+  - [Two-Tower](http://127.0.0.1:8000/machine-learning/two_tower/)
+  - [Semantic Search](http://127.0.0.1:8000/machine-learning/semantic-search/)
+
+- **[API Reference](http://127.0.0.1:8000/backend-frontend/api-reference/)**: Complete endpoint docs
+- **[Troubleshooting](http://127.0.0.1:8000/troubleshooting/)**: Common issues and solutions
+
+## Configuration
 
 ### Key Configuration Files
 
@@ -246,7 +309,7 @@ VITE_USE_REAL_SEARCH=true
 
 See [Configuration Reference](docs/reference/configuration.md) for all parameters.
 
-## 🎯 Performance Metrics
+## Performance Metrics
 
 ### Model Performance
 - **BERT4Rec NDCG@10**: 0.412
@@ -260,7 +323,7 @@ See [Configuration Reference](docs/reference/configuration.md) for all parameter
 - **Search Engine Init**: ~5 seconds (loads 9,742 embeddings)
 - **Frontend Load**: <2 seconds initial load
 
-## 🛠️ Development
+## Development
 
 ### Project Structure
 ```
@@ -292,7 +355,7 @@ See [Common Workflows](docs/getting-started/common-workflows.md) for detailed gu
 - Debugging search issues
 - Regenerating data with DVC
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -323,7 +386,7 @@ const apiUrl = import.meta.env.VITE_API_URL;
 
 See [Troubleshooting Guide](docs/troubleshooting/index.md) for complete solutions.
 
-## 🤝 Contributing
+## Contributing
 
 This is a portfolio/learning project, but contributions are welcome:
 
@@ -334,11 +397,11 @@ This is a portfolio/learning project, but contributions are welcome:
 
 Please open an issue first to discuss major changes.
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **MovieLens**: For the recommendation dataset
 - **TMDB**: For movie metadata and poster images

@@ -4,8 +4,8 @@ site_author: Movie Genie Team
 site_url: https://your-username.github.io/movie-genie
 
 # Repository
-repo_name: movie-genie
-repo_url: https://github.com/your-username/movie-genie
+repo_name: AnasBuhayh/movie-genie
+repo_url: https://github.com/AnasBuhayh/movie-genie
 edit_uri: edit/main/docs/
 
 # Copyright
@@ -68,9 +68,11 @@ plugins:
       minify_html: true
   - git-revision-date-localized:
       enable_creation_date: true
-  - git-committers:
-      repository: your-username/movie-genie
-      branch: main
+      fallback_to_build_date: true
+  # git-committers plugin disabled - requires GitHub API token and proper repo config
+  # - git-committers:
+  #     repository: AnasBuhayh/movie-genie
+  #     branch: main
   - tags
 
 # Hooks (commented out for now)
@@ -87,11 +89,7 @@ extra:
     property: !ENV GOOGLE_ANALYTICS_KEY
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/your-username/movie-genie
-    - icon: fontawesome/brands/python
-      link: https://pypi.org/project/movie-genie/
-    - icon: fontawesome/brands/twitter
-      link: https://twitter.com/your-username
+      link: https://github.com/AnasBuhayh/movie-genie
 
 # Extensions
 markdown_extensions:
@@ -146,6 +144,15 @@ nav:
     - Project Overview: getting-started/project-overview.md
     - Commands Reference: getting-started/commands-reference.md
 
+  - How-To Guides:
+    - how-to-guides/index.md
+    - Adding a New Model: how-to-guides/add-new-model.md
+    - MLflow Integration: how-to-guides/mlflow-integration.md
+    - Serving Recommendations: how-to-guides/serve-recommendations.md
+    - Training Models: how-to-guides/train-models.md
+    - DVC Pipeline Usage: how-to-guides/dvc-pipeline.md
+    - Docker Deployment: how-to-guides/docker-deployment.md
+
   - Machine Learning:
     - machine-learning/index.md
     - Models Overview: machine-learning/models-overview.md
@@ -153,6 +160,12 @@ nav:
     - Two-Tower: machine-learning/two_tower.md
     - Semantic Search: machine-learning/semantic-search.md
     - Model Evaluation: machine-learning/evaluation.md
+
+  - MLflow:
+    - mlflow/index.md
+    - Setup Guide: mlflow/setup.md
+    - Integration Summary: mlflow/integration-summary.md
+    - Frontend Dashboard: mlflow/dashboard-implementation.md
 
   - Data Pipeline:
     - data-pipeline/index.md
